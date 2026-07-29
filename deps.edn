@@ -1,0 +1,14 @@
+{:paths ["src" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.11.1"}
+        top.kzre/deflayout {:mvn/version "0.1.0"}
+        top.kzre/krro-util-math {:mvn/version "1.0-SNAPSHOT"}
+        }
+
+ :aliases
+ {:build
+  {:deps {io.github.clojure/tools.build {:mvn/version "0.9.6"}
+          org.slf4j/slf4j-nop {:mvn/version "2.0.7"}}
+   :ns-default build}
+  :run
+  {:extra-paths ["target/classes"]
+   :main-opts ["-m" "top.kzre.krro.app.core"]}}}
