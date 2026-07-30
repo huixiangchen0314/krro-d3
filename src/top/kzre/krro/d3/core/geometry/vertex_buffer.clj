@@ -1,26 +1,8 @@
 (ns top.kzre.krro.d3.core.geometry.vertex-buffer
   (:require
-   [top.kzre.deflayout.core :refer [deflayout]]))
-
-
-(deflayout VertexBuffer
-           {:vertices [:float [:vertex [:x :y :z]
-                               :normal [:x :y :z]
-                               :uv    [:u :v]]]
-            :weights     [:float [:weights 4]]
-            :bone-indices [:int   [:boneIds 4]]}
-           :ext? true
-           :unchecked-math? true)
-
-(defn make-vertex-buffer
-  (^VertexBuffer [size & {:keys [skinned? ext]}]
-   (let [vertices (float-array (size * 8))
-         weights (if skinned? (float-array (size * 4)) nil)
-         bone-indices (if skinned? (int-array (size * 4)) nil)]
-     (make-vertex-buffer vertices weights bone-indices ext)))
-  (^VertexBuffer [{:keys [vertices weights bone-indices ext]}]
-   (VertexBuffer. vertices weights bone-indices ext)))
-
+    [top.kzre.deflayout.core :refer [deflayout]])
+  (:import (top.kzre.krro.d3.core.geometry IVertexBuffer)
+           (top.kzre.krro.util.pool FloatsPool FloatsPools IntsPool IntsPools)))
 
 
 ;; ═════════════════════════════════════════════════════════════
@@ -138,3 +120,68 @@
 (declare obj-set-uv!)
 (declare obj-set-weights!)
 (declare obj-set-bone-ids!)
+
+(declare
+  clone-vertex-buffer-polled
+  dispose-polled-vertex-buffer)
+
+(deflayout VertexBuffer
+           {:vertices [:float [:vertex [:x :y :z]
+                               :normal [:x :y :z]
+                               :uv    [:u :v]]]
+            :weights     [:float [:weights 4]]
+            :bone-indices [:int   [:boneIds 4]]}
+           {:ext? true
+            :unchecked-math? true}   ; 选项 map
+           IVertexBuffer
+           (cloneBuffer [this] (clone-vertex-buffer-polled this))
+           (dispose [this] (dispose-polled-vertex-buffer this)))
+
+(defn make-vertex-buffer
+  (^VertexBuffer [size & {:keys [skinned? ext]}]
+   (let [vertices (float-array (size * 8))
+         weights (if skinned? (float-array (size * 4)) nil)
+         bone-indices (if skinned? (int-array (size * 4)) nil)]
+     (make-vertex-buffer vertices weights bone-indices ext)))
+  (^VertexBuffer [{:keys [vertices weights bone-indices ext]}]
+   (VertexBuffer. vertices weights bone-indices ext)))
+
+
+(defn clone-vertex-buffer-polled
+  "利用 FloatsPools 和 IntsPools 池分配新数组并复制数据，返回新的 VertexBuffer。"
+  [^VertexBuffer buffer]
+  (let [old-verts (.vertices buffer)
+        len-v (alength old-verts)
+        new-verts (-> ^FloatsPool (FloatsPools/getPool len-v)
+                      (.acquire))]
+    (System/arraycopy old-verts 0 new-verts 0 len-v)
+
+    (let [new-weights (when-let [old-w (.weights buffer)]
+                        (let [len-w (alength old-w)
+                              new-w (-> ^FloatsPool (FloatsPools/getPool len-w)
+                                        (.acquire))]
+                          (System/arraycopy old-w 0 new-w 0 len-w)
+                          new-w))
+
+          new-bone (when-let [old-b (.bone-indices buffer)]
+                     (let [len-b (alength old-b)
+                           new-b (-> ^IntsPool (IntsPools/getPool len-b)
+                                     (.acquire))]
+                       (System/arraycopy old-b 0 new-b 0 len-b)
+                       new-b))]
+      (VertexBuffer. new-verts new-weights new-bone (.ext buffer)))))
+
+(defn dispose-polled-vertex-buffer
+  "将 VertexBuffer 中的 float 数组和 int 数组归还到对应的池中。"
+  [^VertexBuffer buffer]
+  (when-let [verts (.vertices buffer)]
+    (let [len (alength verts)]
+      (.release ^FloatsPool  (FloatsPools/getPool len) verts)))
+  (when-let [weights (.weights buffer)]
+    (let [len (alength weights)]
+      (.release ^FloatsPool  (FloatsPools/getPool len) weights)))
+  (when-let [bone-indices (.bone-indices buffer)]
+    (let [len (alength bone-indices)]
+      (.release ^IntsPool  (IntsPools/getPool len)
+                bone-indices)))
+  nil)

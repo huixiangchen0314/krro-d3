@@ -37,7 +37,7 @@
 
 (defn jar [_]
       (clean nil)
-      ;(compile-java nil)
+      (compile-java nil)
       (compile-clj nil)
       (b/write-pom {:class-dir class-dir
                     :lib lib
