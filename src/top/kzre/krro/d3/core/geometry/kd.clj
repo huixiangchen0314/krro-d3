@@ -48,7 +48,7 @@
 ;;   right      int    右子索引；叶时为图元 id
 
 (deflayout KD
-           {:split [:float [:pos  [:v]]]
+           {:split [:float [:split [:pos]]]
             :axis  [:byte  [:axis [:v]]]
             :child [:int   [:children [:left :right]]]}
            {:unchecked-math? true
@@ -82,20 +82,23 @@
 ;; 节点写入——构建器调用
 ;; ═══════════════════════════════════════════════
 
-(defn write-leaf!
-  "写入叶节点——left = -1，right = 图元 id。"
-  [^ints child node-idx prim-id]
-  (set-children-left!  child node-idx -1)
-  (set-children-right! child node-idx prim-id))
+;; ═══════════════════════════════════════════════
+;; 节点写入——宏——调用点展开
+;; ═══════════════════════════════════════════════
 
-(defn write-internal!
+(defmacro write-leaf!
+  "写入叶节点——left = -1，right = 图元 id。"
+  [child node-idx prim-id]
+  `(do (set-children-left!  ~child ~node-idx -1)
+       (set-children-right! ~child ~node-idx ~prim-id)))
+
+(defmacro write-internal!
   "写入内部节点——轴 + 分割位置 + 左右子。"
-  [^floats split ^bytes axis ^ints child
-   node-idx axis-id split-pos left-idx right-idx]
-  (set-split-pos! split node-idx (float split-pos))
-  (set-axis-v!    axis  node-idx (byte axis-id))
-  (set-children-left!  child node-idx left-idx)
-  (set-children-right! child node-idx right-idx))
+  [split axis child node-idx axis-id split-pos left-idx right-idx]
+  `(do (set-split-pos! ~split ~node-idx ~split-pos)
+       (set-axis-v!    ~axis  ~node-idx ~axis-id)
+       (set-children-left!  ~child ~node-idx ~left-idx)
+       (set-children-right! ~child ~node-idx ~right-idx)))
 
 ;; ═══════════════════════════════════════════════
 ;; 查询——概念操作

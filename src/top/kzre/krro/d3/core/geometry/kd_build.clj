@@ -44,7 +44,7 @@
 ;; ═══════════════════════════════════════════════
 
 (defn- build-rec
-  [^KDBuildCtx ctx ^long start ^long end]
+  ^long [^KDBuildCtx ctx ^long start ^long end]
   (let [^floats aabbs (.aabbs ctx)
         ^longs  prims (.prims ctx)
         ^floats split (.split ctx)
@@ -53,10 +53,8 @@
         idx     (.allocIdx ctx)
         n       (- end start)]
     (if (== n 1)
-      ;; 叶节点
       (do (kd/write-leaf! child (int idx) (int (aget prims start)))
           idx)
-      ;; 内部节点
       (let [^AABB range (aabb/range-aabb-range aabbs prims start end)
             ax         (aabb/longest-axis range)
             ax-i       (int ax)
@@ -67,7 +65,7 @@
             left-idx   (build-rec ctx start mid)
             right-idx  (build-rec ctx mid end)]
         (kd/write-internal! split axis child
-                            (int idx) ax-i split-pos
+                            (int idx) (byte ax-i) split-pos
                             (int left-idx) (int right-idx))
         idx))))
 
