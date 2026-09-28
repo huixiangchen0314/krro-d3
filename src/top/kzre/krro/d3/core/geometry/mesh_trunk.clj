@@ -23,9 +23,9 @@
             max-y Float/NEGATIVE_INFINITY
             max-z Float/NEGATIVE_INFINITY]
        (if (< i vertex-count)
-         (let [x (vb/obj-vertex-x buffer i)
-               y (vb/obj-vertex-y buffer i)
-               z (vb/obj-vertex-z buffer i)]
+         (let [x (vb/obj-position-x buffer i)
+               y (vb/obj-position-y buffer i)
+               z (vb/obj-position-z buffer i)]
            (recur (unchecked-inc i)
                   (KMath/minD min-x x)
                   (KMath/minD min-y y)

@@ -8,9 +8,9 @@
 ;; ═════════════════════════════════════════════════════════════
 ;; 单个分量读取 – 数组版本 (arr idx)
 ;; ═════════════════════════════════════════════════════════════
-(declare vertex-x)      ; (vertex-x arr idx) → float
-(declare vertex-y)
-(declare vertex-z)
+(declare position-x)      ; (position-x arr idx) → float
+(declare position-y)
+(declare position-z)
 (declare normal-x)
 (declare normal-y)
 (declare normal-z)
@@ -28,9 +28,9 @@
 ;; ═════════════════════════════════════════════════════════════
 ;; 单个分量读取 – obj 版本 (buffer idx)
 ;; ═════════════════════════════════════════════════════════════
-(declare obj-vertex-x)  ; (obj-vertex-x buffer idx) → float
-(declare obj-vertex-y)
-(declare obj-vertex-z)
+(declare obj-position-x)  ; (obj-position-x buffer idx) → float
+(declare obj-position-y)
+(declare obj-position-z)
 (declare obj-normal-x)
 (declare obj-normal-y)
 (declare obj-normal-z)
@@ -48,9 +48,9 @@
 ;; ═════════════════════════════════════════════════════════════
 ;; 单个分量写入 – 数组版本 (arr idx val)
 ;; ═════════════════════════════════════════════════════════════
-(declare set-vertex-x!)
-(declare set-vertex-y!)
-(declare set-vertex-z!)
+(declare set-position-x!)
+(declare set-position-y!)
+(declare set-position-z!)
 (declare set-normal-x!)
 (declare set-normal-y!)
 (declare set-normal-z!)
@@ -68,9 +68,9 @@
 ;; ═════════════════════════════════════════════════════════════
 ;; 单个分量写入 – obj 版本 (buffer idx val)
 ;; ═════════════════════════════════════════════════════════════
-(declare obj-set-vertex-x!)
-(declare obj-set-vertex-y!)
-(declare obj-set-vertex-z!)
+(declare obj-set-position-x!)
+(declare obj-set-position-y!)
+(declare obj-set-position-z!)
 (declare obj-set-normal-x!)
 (declare obj-set-normal-y!)
 (declare obj-set-normal-z!)
@@ -106,7 +106,7 @@
 ;; ═════════════════════════════════════════════════════════════
 ;; 整字段写入 – 数组版本 (arr idx x y z ...)
 ;; ═════════════════════════════════════════════════════════════
-(declare set-vertex!)   ; (set-vertex! arr idx x y z)
+(declare set-position!)   ; (set-position! arr idx x y z)
 (declare set-normal!)
 (declare set-uv!)       ; (set-uv! arr idx u v)
 (declare set-weights!)  ; (set-weights! arr idx w0 w1 w2 w3)
@@ -115,7 +115,7 @@
 ;; ═════════════════════════════════════════════════════════════
 ;; 整字段写入 – obj 版本 (buffer idx x y z ...)
 ;; ═════════════════════════════════════════════════════════════
-(declare obj-set-vertex!)
+(declare obj-set-position!)
 (declare obj-set-normal!)
 (declare obj-set-uv!)
 (declare obj-set-weights!)
@@ -127,7 +127,7 @@
 
 ;; 这个符号名称不能 declare
 (deflayout VertexBuffer
-           {:vertices [:float [:vertex [:x :y :z]
+           {:vertices [:float [:position [:x :y :z]
                                :normal [:x :y :z]
                                :uv    [:u :v]]]
             :weights     [:float [:weights 4]]
