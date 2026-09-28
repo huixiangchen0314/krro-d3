@@ -1,5 +1,7 @@
 package top.kzre.krro.d3.core.geometry.bvh;
 
+import top.kzre.krro.d3.core.geometry.Axis;
+
 /**
  * Binned BVH 构建辅助——最长轴分桶 + SAH 扫描。
  *
@@ -38,9 +40,9 @@ public final class BinnedSelect {
         float ey = maxY - minY;
         float ez = maxZ - minZ;
 
-        if (ex >= ey && ex >= ez) return 0;
-        if (ey >= ez)             return 1;
-        return 2;
+        if (ex >= ey && ex >= ez) return Axis.X;
+        if (ey >= ez)             return Axis.Y;
+        return Axis.Z;
     }
 
     /**

@@ -12,7 +12,6 @@ package top.kzre.krro.d3.core.geometry;
  */
 public final class SpatialOverlay {
 
-    /** 空结果单例。 */
     public static final SpatialOverlay EMPTY = new SpatialOverlay(new int[0], 0);
 
     private final int[] ids;

@@ -14,7 +14,7 @@
   (:require
     [top.kzre.deflayout.core :refer [deflayout]])
   (:import
-    (top.kzre.krro.d3.core.geometry AABB IAABB)))
+    (top.kzre.krro.d3.core.geometry AABB Axis IAABB)))
 
 (set! *unchecked-math* true)
 
@@ -153,16 +153,16 @@
 (defn center-on-axis
   "图元 prim-idx 在 axis-idx 上的中心坐标——double。
 
-   axis-idx：0 = X，1 = Y，2 = Z。"
+   axis-idx：Axis/X / Axis/Y / Axis/Z。"
   ^double [^floats arr ^long prim-idx ^long axis-idx]
-  (let [lo (case axis-idx
-             0 (double (aabb-min-x arr prim-idx))
-             1 (double (aabb-min-y arr prim-idx))
-             2 (double (aabb-min-z arr prim-idx)))
-        hi (case axis-idx
-             0 (double (aabb-max-x arr prim-idx))
-             1 (double (aabb-max-y arr prim-idx))
-             2 (double (aabb-max-z arr prim-idx)))]
+  (let [lo (double (Axis/select axis-idx
+                                (aabb-min-x arr prim-idx)
+                                (aabb-min-y arr prim-idx)
+                                (aabb-min-z arr prim-idx)))
+        hi (double (Axis/select axis-idx
+                                (aabb-max-x arr prim-idx)
+                                (aabb-max-y arr prim-idx)
+                                (aabb-max-z arr prim-idx)))]
     (* 0.5 (+ lo hi))))
 
 (defn longest-axis
