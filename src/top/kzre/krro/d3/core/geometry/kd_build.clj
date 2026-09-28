@@ -55,7 +55,7 @@
     (if (== n 1)
       (do (kd/write-leaf! child (int idx) (int (aget prims start)))
           idx)
-      (let [^AABB range (aabb/range-aabb-range aabbs prims start end)
+      (let [^AABB range (aabb/range-aabb-range aabbs prims (long start) (long end))
             ax         (aabb/longest-axis range)
             ax-i       (int ax)
             mid        (KDSelect/medianPartitionAabb
