@@ -50,7 +50,7 @@
    - (make-bvh data child primitive-count) 指定图元数"
   (^BVH [^floats data ^ints child]
    (BVH. data child (BVHMeta. 0)))
-  (^BVH [^floats data ^ints child ^long primitive-count]
+  (^BVH [^floats data ^ints child primitive-count]
    (BVH. data child (BVHMeta. primitive-count))))
 
 ;; ═══════════════════════════════════════════════
