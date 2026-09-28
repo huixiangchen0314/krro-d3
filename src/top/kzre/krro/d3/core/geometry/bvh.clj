@@ -1,6 +1,6 @@
 (ns top.kzre.krro.d3.core.geometry.bvh
   (:require [top.kzre.deflayout.core :refer [deflayout]])
-  (:import (top.kzre.krro.d3.core.geometry BVHRayHit BVHOverlay IAABB IntersectionAlgo Ray Sphere)
+  (:import (top.kzre.krro.d3.core.geometry SpatialRayHit SpatialOverlay IAABB IntersectionAlgo Ray Sphere)
            (top.kzre.krro.util.math KMath)))
 
 (set! *unchecked-math* true)
@@ -113,11 +113,11 @@
 ;; ═══════════════════════════════════════════════
 ;; TODO 多图元查询升级
 
-(defn ray-query ^BVHRayHit
+(defn ray-query ^SpatialRayHit
   [^BVH lbvh ^Ray ray]
   (let [n (primitive-count lbvh)]
     (if (zero? n)
-      BVHRayHit/MISS
+      SpatialRayHit/MISS
       (let [^floats nodes (.data lbvh)
             ^ints   child (.child lbvh)
             ^ints   stack (int-array 128)]
@@ -127,8 +127,8 @@
                best-t    Float/MAX_VALUE]
           (if (zero? stack-ptr)
             (if (>= best-idx 0)
-              (BVHRayHit. best-idx best-t)
-              BVHRayHit/MISS)
+              (SpatialRayHit. best-idx best-t)
+              SpatialRayHit/MISS)
             (let [stack-ptr (int (dec stack-ptr))
                   node-idx  (int (aget stack stack-ptr))
                   min-x (aabb-min-x nodes node-idx)
@@ -150,11 +150,11 @@
                       (recur stack-ptr best-idx best-t))))
                 (recur stack-ptr best-idx best-t)))))))))
 
-(defn sphere-query ^BVHOverlay
+(defn sphere-query ^SpatialOverlay
   [^BVH lbvh ^Sphere sphere]
   (let [n (primitive-count lbvh)]
     (if (zero? n)
-      BVHOverlay/EMPTY
+      SpatialOverlay/EMPTY
       (let [^floats nodes  (.data lbvh)
             ^ints   child  (.child lbvh)
             ^ints   stack  (int-array 128)
@@ -168,7 +168,7 @@
         (aset stack 0 0)
         (loop [stack-ptr (int 1)]
           (if (zero? stack-ptr)
-            (BVHOverlay. out (aget cap 0))
+            (SpatialOverlay. out (aget cap 0))
             (let [stack-ptr (int (dec stack-ptr))
                   node-idx  (int (aget stack stack-ptr))
                   min-x (aabb-min-x nodes node-idx)
