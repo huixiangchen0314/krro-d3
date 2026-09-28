@@ -12,6 +12,8 @@ package top.kzre.krro.d3.core.geometry;
  *   <li>{@code radialNext} / {@code radialPrev}——边的径向环——
  *       沿一条边遍历它连接的所有面</li>
  * </ul>
+ *
+ * <p><b>纯数据</b>：不带编辑器标记、不带烘焙索引。
  */
 public final class BMLoop {
 
@@ -30,14 +32,11 @@ public final class BMLoop {
     /** 面内上一条 loop。 */
     BMLoop prev;
 
-    /** 径向环下一条——同一 {code edge} 的下一个 loop。 */
+    /** 径向环下一条——同一 {@code edge} 的下一个 loop。 */
     BMLoop radialNext;
 
     /** 径向环上一条。 */
     BMLoop radialPrev;
-
-    /** 索引。 */
-    int index;
 
     // ── 逐角点数据（可选） ─────────────────────
     // MVP 阶段先内联最常用的——UV。更多数据通过扩展字段或外部
@@ -48,14 +47,13 @@ public final class BMLoop {
 
     // ── 公开访问器 ─────────────────────────────
 
-    public BMVert vert()  { return vert; }
-    public BMEdge edge()  { return edge; }
-    public BMFace face()  { return face; }
-    public BMLoop next()  { return next; }
-    public BMLoop prev()  { return prev; }
+    public BMVert vert()       { return vert; }
+    public BMEdge edge()       { return edge; }
+    public BMFace face()       { return face; }
+    public BMLoop next()       { return next; }
+    public BMLoop prev()       { return prev; }
     public BMLoop radialNext() { return radialNext; }
     public BMLoop radialPrev() { return radialPrev; }
-    public int    index() { return index; }
 
     public float u() { return u; }
     public float v() { return v; }
@@ -68,20 +66,13 @@ public final class BMLoop {
     }
 
     /** 面内的下一个顶点——沿面方向前进一条边的另一端。 */
-    public BMVert nextVert() {
-        return next.vert;
-    }
+    public BMVert nextVert() { return next.vert; }
 
     /** 面内的前一个顶点。 */
-    public BMVert prevVert() {
-        return prev.vert;
-    }
+    public BMVert prevVert() { return prev.vert; }
 
     @Override
     public String toString() {
-        return "BMLoop#" + index
-                + "(v=" + (vert != null ? vert.index : -1)
-                + ", f=" + (face != null ? face.index : -1)
-                + ")";
+        return "BMLoop(v=" + vert + ", f=" + face + ")";
     }
 }

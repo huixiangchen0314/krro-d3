@@ -13,6 +13,12 @@ import java.util.List;
  * <p><b>不在持久化路径上</b>：BMesh 只存在于编辑会话内——单线程
  * 持有、不进序列化、不进 GPU、不需要 COW。
  *
+ * <p><b>纯数据</b>：BMesh 及其四个实体（{@link BMVert} / {@link BMEdge}
+ * / {@link BMLoop} / {@link BMFace}）只承载几何与拓扑。编辑器状态
+ * （选择、可见、临时标记）由外部持有——用 Clojure 侧的 map / set
+ * 显式引用这些实体。烘焙期的索引由烘焙器内部临时分配——不落在
+ * BMesh 上。
+ *
  * <p><b>结构</b>：四个实体通过引用互联——
  * <ul>
  *   <li>{@link BMVert} —— 顶点</li>
@@ -42,7 +48,7 @@ import java.util.List;
  */
 public final class BMesh {
 
-    /** 所有顶点。顺序即创建顺序——烘焙回 Mesh 时用作顶点索引。 */
+    /** 所有顶点。顺序即创建顺序。 */
     private final List<BMVert> verts = new ArrayList<>();
 
     /** 所有边。 */
@@ -66,7 +72,6 @@ public final class BMesh {
         v.x = x;
         v.y = y;
         v.z = z;
-        v.index = verts.size();
         verts.add(v);
         return v;
     }
@@ -74,8 +79,7 @@ public final class BMesh {
     /**
      * 新建一条边。两个顶点不同、且这条边尚不存在。
      *
-     * <p>同时更新两个顶点的 {@code edge} 指针——如果它们还没有出边，
-     * 或当前出边指向的地方不合适——这里简单处理：仅当顶点无出边时设置。
+     * <p>同时更新两个顶点的 {@code edge} 指针——如果它们还没有出边。
      * 邻接关系的精确维护由上层操作负责。
      */
     public BMEdge addEdge(BMVert v0, BMVert v1) {
@@ -85,10 +89,8 @@ public final class BMesh {
         BMEdge e = new BMEdge();
         e.v0 = v0;
         e.v1 = v1;
-        e.index = edges.size();
         edges.add(e);
 
-        // 顶点的出边指针——若未设置则指向本边
         if (v0.edge == null) v0.edge = e;
         if (v1.edge == null) v1.edge = e;
 
@@ -101,6 +103,11 @@ public final class BMesh {
      *
      * <p>面的 loop 顺序与传入的顶点顺序一致，方向由顶点顺序决定。
      *
+     * <p><b>绕向约定</b>：面顶点按逆时针排列（从面法线方向看）。
+     * 这决定 radial 环的方向——所有面必须统一。当前实现把新 loop
+     * 追加到径向环链尾，在绕向一致的构建下可以工作；更精确的
+     * "按绕向插入"留待后续。
+     *
      * @param vs 至少 3 个顶点，连续顶点之间建边
      */
     public BMFace addFace(BMVert... vs) {
@@ -110,9 +117,7 @@ public final class BMesh {
 
         BMFace f = new BMFace();
         f.len = vs.length;
-        f.index = faces.size();
 
-        // 为每条边创建 loop，并串成面内环
         BMLoop first = null;
         BMLoop prevLoop = null;
         for (int i = 0; i < vs.length; i++) {
@@ -126,7 +131,6 @@ public final class BMesh {
             loop.vert = a;
             loop.edge = e;
             loop.face = f;
-            loop.index = loops.size();
             loops.add(loop);
 
             if (first == null) first = loop;
@@ -136,7 +140,6 @@ public final class BMesh {
             }
             prevLoop = loop;
 
-            // 挂到边的径向环——简单追加到链头
             attachRadial(e, loop);
         }
         // 收尾：闭环
@@ -153,29 +156,47 @@ public final class BMesh {
     // ═══════════════════════════════════════════════
 
     /**
-     * 查找一条边。O(deg) —— 遍历 v0 的出边径向环。
+     * 查找连接 v0 与 v1 的边。未找到返回 null。
      *
-     * <p>如果性能敏感，上层可缓存邻接表。
+     * <p>沿 v0 的 disk cycle 遍历所有出边。disk cycle 由 loop cycle
+     * 和 radial cycle 组合推导——标准径向边结构的顶点邻接遍历。
+     *
+     * <p><b>边界情况</b>：v0 只出现在边界边上时——disk cycle 会
+     * 在单侧 loop 处终止——返回 null。
+     *
+     * <p>性能：O(deg(v0))——顶点度数小，实际开销可忽略。若需
+     * O(1) 查询，上层可额外维护邻接缓存。
      */
     public BMEdge findEdge(BMVert v0, BMVert v1) {
+        if (v0 == null || v1 == null) return null;
+
         BMEdge start = v0.edge;
         if (start == null) return null;
+        if (start.has(v1)) return start;
 
-        BMEdge e = start;
+        // 找 start 上以 v0 为起点的 loop
+        BMLoop l = loopOf(start, v0);
+        if (l == null) return null;
+
+        BMLoop cursor = l;
         do {
-            if (e.has(v1)) return e;
+            BMLoop rp = cursor.radialPrev;
 
-            // disk cycle：找 e 上"以 v0 为起点"的 loop
-            BMLoop l = loopOf(e, v0);
-            if (l == null) break;
+            // 边界边：radial 环只有一项——没有其他面绕这条边——
+            // v0 的其他出边不能通过本边推出——终止
+            if (rp == cursor) break;
 
-            // 沿径向环切换到 v0 的另一侧——落到 e 的邻居 loop
-            // 约定：loop.radialNext 是"同边的下一条 loop"，且它的起点
-            // 通常是径向翻转后的 v0（另一侧）
-            BMLoop r = l.radialNext;
-            if (r == l) break;              // 边界边：v0 只有 e 这一条出边
-            e = r.edge;
-        } while (e != start);
+            // rp 是 e 的另一侧 loop，起点为 e.other(v0)
+            // rp.next 的下一条 loop，起点为 v0——即 v0 的另一条出边
+            BMLoop next = rp.next;
+
+            // 防御：不是以 v0 为起点则终止
+            if (next.vert != v0) break;
+
+            if (next.edge.has(v1)) return next.edge;
+
+            cursor = next;
+        } while (cursor != l);
 
         return null;
     }
@@ -228,6 +249,11 @@ public final class BMesh {
      *
      * <p>如果边还没有 loop——新 loop 自成一个只有一项的环。
      * 否则——插入到链尾。
+     *
+     * <p><b>注</b>：在绕向不一致的构建中，"链尾"的位置可能不对。
+     * 完整的径向边结构要求按面的绕向插入——保证径向环的顺序和
+     * 面绕边的旋转顺序一致。当前实现假设调用方按统一绕向构建——
+     * 追加到链尾即可。后续需要按绕向插入时再改。
      */
     private static void attachRadial(BMEdge e, BMLoop newLoop) {
         if (e.loop == null) {

@@ -1,62 +1,64 @@
 package top.kzre.krro.d3.core.geometry;
 
 /**
- * 网格分块句柄，封装 COW（写时复制）语义，类似于 2D 的 {@code Tile}。
- * <p>
- * 内部持有 {@link MeshTrunk} 引用，并提供线程安全的可写访问。
- * 当底层分块被多个句柄共享（引用计数 > 1）时，写入操作会自动克隆分块，
- * 从而保证其他共享者不受影响。
+ * 网格分块句柄——封装 COW（写时复制）语义。
+ *
+ * <p>内部持有 {@link IMeshTrunk} 引用，并提供线程安全的可写访问。
+ * 当底层分块被多个句柄共享（引用计数 &gt; 1）时，{@link #writableTrunk()}
+ * 自动克隆分块——保证其他共享者不受影响。
  */
 public final class TrunkHandle {
-    private volatile MeshTrunk trunk;
+
+    private IMeshTrunk trunk;
 
     /**
-     * 构造句柄，不增加 trunk 的引用计数（假设 trunk 初始计数为 1）。
+     * 构造句柄——不增加 trunk 的引用计数（假设 trunk 初始计数为 1）。
      */
-    public TrunkHandle(MeshTrunk trunk) {
+    public TrunkHandle(IMeshTrunk trunk) {
         this.trunk = trunk;
     }
 
     /**
-     * 返回只读的 MeshTrunk。调用者不得修改返回的对象或其内部数据。
+     * 只读引用——调用者不得修改返回的对象或其内部数据。
      */
-    public synchronized MeshTrunk trunk() {
+    synchronized IMeshTrunk trunk() {
         return trunk;
     }
 
     /**
-     * 返回一个可安全修改的 MeshTrunk。如果当前 trunk 被多个句柄共享（引用计数 > 1），
-     * 则内部自动克隆一份，旧 trunk 引用减 1，新 trunk 独占（引用计数为 1）。
-     * 调用者可以直接修改返回的 trunk，不影响其他句柄。
+     * 返回可安全修改的 trunk。
+     *
+     * <p>如果当前 trunk 被多个句柄共享（引用计数 &gt; 1），内部自动克隆
+     * 一份，旧 trunk 引用减 1，新 trunk 独占（引用计数为 1）。
      */
-    public synchronized MeshTrunk writableTrunk() {
-        if (trunk.getRefCount() > 1) {
-            MeshTrunk newTrunk = trunk.cloneTrunk();   // 池化克隆
-            trunk.release();                            // 释放旧 trunk 的一个引用
-            trunk = newTrunk;                           // 切换为新 trunk
+    synchronized IMeshTrunk writableTrunk() {
+        if (trunk.refCount() > 1) {
+            IMeshTrunk newTrunk = trunk.cloneTrunk();
+            trunk.release();
+            trunk = newTrunk;
         }
         return trunk;
     }
 
     /**
      * 替换当前 trunk 为新 trunk（用于共享）。
-     * 调用者必须保证 newTrunk 的引用计数已正确增加（通常由其他句柄调用 acquire 后传入）。
-     * 替换前会释放当前 trunk 的一个引用。
-     * <p>
-     * 包内可见，不公开给外部用户。
+     *
+     * <p>方法内部 acquire 新 trunk、release 旧 trunk——调用者不需要
+     * 预先增加引用计数。当 {@code newTrunk == trunk} 时——acquire 和
+     * release 净效果为零——引用计数不变。
+     *
+     * <p>包内可见。
      */
-    synchronized void replaceData(MeshTrunk newTrunk) {
-        trunk.release();        // 释放旧 trunk
-        trunk = newTrunk;       // 直接持有新 trunk（不再额外 acquire，因为 newTrunk 已由调用者增加了引用）
+    synchronized void replaceTrunk(IMeshTrunk newTrunk) {
+        newTrunk.acquire();
+        this.trunk.release();
+        this.trunk = newTrunk;
     }
 
     /**
-     * 获取当前 trunk 的只读引用（不增加引用计数）。
-     * 用于只读遍历，调用者不得修改返回的 trunk 或其内部数据。
-     * <p>
-     * 包内可见。
+     * 只读引用——不增加引用计数。包内可见。
      */
-    synchronized MeshTrunk getDataRef() {
+    synchronized IMeshTrunk getTrunkRef() {
         return trunk;
     }
 }

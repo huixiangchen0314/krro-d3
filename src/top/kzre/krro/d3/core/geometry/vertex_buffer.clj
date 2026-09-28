@@ -135,7 +135,7 @@
            {:ext? true
             :unchecked-math? true}   ; 选项 map
            IVertexBuffer
-           (cloneBuffer [this] (clone-vertex-buffer-polled this))
+           (copy [this] (clone-vertex-buffer-polled this))
            (dispose [this] (dispose-polled-vertex-buffer this)))
 
 (defn make-vertex-buffer

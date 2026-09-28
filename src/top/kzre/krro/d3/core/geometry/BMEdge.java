@@ -8,6 +8,8 @@ package top.kzre.krro.d3.core.geometry;
  *
  * <p>允许非流形：一条边可以连接任意数量的面——径向环是双向链表，
  * 不限于两项。
+ *
+ * <p><b>纯数据</b>：不带编辑器标记、不带烘焙索引。
  */
 public final class BMEdge {
 
@@ -17,19 +19,11 @@ public final class BMEdge {
     /** 径向环入口。{@code null} 表示无边界面（孤立边）。 */
     BMLoop loop;
 
-    /** 标志位。 */
-    int flags;
-
-    /** 索引。 */
-    int index;
-
     // ── 公开访问器 ─────────────────────────────
 
-    public BMVert v0() { return v0; }
-    public BMVert v1() { return v1; }
+    public BMVert v0()   { return v0; }
+    public BMVert v1()   { return v1; }
     public BMLoop loop() { return loop; }
-    public int    index() { return index; }
-    public int    flags() { return flags; }
 
     /** 另一个端点。 */
     public BMVert other(BMVert v) {
@@ -41,12 +35,8 @@ public final class BMEdge {
     /** 是否包含指定顶点。 */
     public boolean has(BMVert v) { return v == v0 || v == v1; }
 
-    // ── 公开修改器 ─────────────────────────────
-
-    public void setFlags(int f) { this.flags = f; }
-
     @Override
     public String toString() {
-        return "BMEdge#" + index + "(" + v0.index + " - " + v1.index + ")";
+        return "BMEdge(" + v0 + " - " + v1 + ")";
     }
 }

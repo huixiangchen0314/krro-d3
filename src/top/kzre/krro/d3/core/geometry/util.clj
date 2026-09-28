@@ -3,19 +3,13 @@
     [top.kzre.krro.d3.core.geometry.mesh]
    [top.kzre.krro.d3.core.geometry.vertex-buffer :as vb])
   (:import
-    (top.kzre.krro.d3.core.geometry AABB Morton)
-    (top.kzre.krro.d3.core.geometry MeshTrunk)
+    (top.kzre.krro.d3.core.geometry AABB ImmutableAABB IMeshTrunk)
     (top.kzre.krro.d3.core.geometry.vertex_buffer VertexBuffer)
     (top.kzre.krro.util.math KMath)))
 
-(defn enable-unchecked-math [] (set! *unchecked-math* :warn-on-boxed))
-
-(defn disable-unchecked-math [] (set! *unchecked-math* nil))
-
-
 (defn mesh-trunk-aabb
   "计算网格分块的 AABB 包围盒（模型空间），使用原始类型避免装箱。"
-  ^AABB [^MeshTrunk trunk]
+  ^AABB [^IMeshTrunk trunk]
   (let [^VertexBuffer buffer (.getBuffer trunk)
         vertex-count (.getVertexCount trunk)]
     (loop [i 0
@@ -30,13 +24,14 @@
               y (vb/obj-vertex-y buffer i)
               z (vb/obj-vertex-z buffer i)]
           (recur (unchecked-inc i)
-                 (KMath/mind min-x x)
-                 (KMath/mind min-y y)
-                 (KMath/mind min-z z)
-                 (KMath/maxd max-x x)
-                 (KMath/maxd max-y y)
-                 (KMath/maxd max-z z)))
+                 (KMath/minD min-x x)
+                 (KMath/minD min-y y)
+                 (KMath/minD min-z z)
+                 (KMath/maxD max-x x)
+                 (KMath/maxD max-y y)
+                 (KMath/maxD max-z z)))
         (AABB. min-x min-y min-z max-x max-y max-z)))))
 
-(defn morton ^long [^AABB trunk-aabb ^AABB global-aabb]
-  (Morton/fromAABBs trunk-aabb global-aabb))
+(defn mesh-trunk-aabb-immutable ^ImmutableAABB
+  [^IMeshTrunk trunk]
+  (.toImmutable (mesh-trunk-aabb trunk)))

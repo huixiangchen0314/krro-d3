@@ -1,5 +1,7 @@
 package top.kzre.krro.d3.core.geometry;
 
+import java.util.function.Consumer;
+
 /**
  * BMesh 面。由一圈 loop 组成——首尾相接的边界。
  *
@@ -10,6 +12,8 @@ package top.kzre.krro.d3.core.geometry;
  *
  * <p>法线在编辑操作后可能失效——上层按需重算。这里只存字段，
  * 不做自动维护。
+ *
+ * <p><b>纯数据</b>：不带编辑器标记、不带烘焙索引。
  */
 public final class BMFace {
 
@@ -22,12 +26,6 @@ public final class BMFace {
     /** 法线——可能无效，由上层维护。 */
     float nx, ny, nz;
 
-    /** 标志位。 */
-    int flags;
-
-    /** 索引。 */
-    int index;
-
     // ── 公开访问器 ─────────────────────────────
 
     public BMLoop loop() { return loop; }
@@ -35,8 +33,6 @@ public final class BMFace {
     public float  nx()   { return nx; }
     public float  ny()   { return ny; }
     public float  nz()   { return nz; }
-    public int    index() { return index; }
-    public int    flags() { return flags; }
 
     // ── 公开修改器 ─────────────────────────────
 
@@ -46,10 +42,8 @@ public final class BMFace {
         this.nz = nz;
     }
 
-    public void setFlags(int f) { this.flags = f; }
-
     /** 遍历面的所有 loop。回调形式——避免分配迭代器。 */
-    public void forEachLoop(java.util.function.Consumer<BMLoop> fn) {
+    public void forEachLoop(Consumer<BMLoop> fn) {
         if (loop == null) return;
         BMLoop l = loop;
         do {
@@ -60,6 +54,6 @@ public final class BMFace {
 
     @Override
     public String toString() {
-        return "BMFace#" + index + "(len=" + len + ")";
+        return "BMFace(len=" + len + ")";
     }
 }
