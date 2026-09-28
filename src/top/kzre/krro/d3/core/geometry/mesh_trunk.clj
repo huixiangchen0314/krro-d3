@@ -1,6 +1,5 @@
 (ns top.kzre.krro.d3.core.geometry.mesh-trunk
   (:require
-    [top.kzre.krro.d3.core.geometry.mesh]
     [top.kzre.krro.d3.core.geometry.vertex-buffer :as vb])
   (:import
     (top.kzre.krro.d3.core.geometry AABB ImmutableAABB IMeshTrunk)
