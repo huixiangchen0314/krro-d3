@@ -1,4 +1,4 @@
-package top.kzre.krro.d3.core.geometry.lbvh;
+package top.kzre.krro.d3.core.geometry.bvh;
 
 /**
  * LBVH 构建上下文——打包递归构建所需的共享数据。

@@ -2,6 +2,7 @@
   (:require [top.kzre.deflayout.core :refer [deflayout]]
             [top.kzre.krro.d3.core.geometry.aabb :as aabb])
   (:import (top.kzre.krro.d3.core.geometry SpatialRayHit SpatialOverlay IAABB IntersectionAlgo Ray Sphere)
+           (top.kzre.krro.d3.core.geometry.bvh BVHMeta IBvhMeta)
            (top.kzre.krro.util.math KMath)))
 
 (set! *unchecked-math* true)
@@ -27,7 +28,6 @@
 ;; 元数据类型——deftype 承载 primitive 字段
 ;; ═══════════════════════════════════════════════
 
-(deftype BVHMeta [^long primitive-count])
 
 ;; ═══════════════════════════════════════════════
 ;; 布局——必须在 write-aabb! / merge-aabb! 之前
@@ -61,7 +61,12 @@
 (defn primitive-count
   "BVH 覆盖的图元数量。0 表示空 BVH。"
   ^long [^BVH bvh]
-  (.-primitive-count ^BVHMeta (.ext bvh)))
+  (.primitiveCount ^IBvhMeta (.ext bvh)))
+
+(defn obj-refs
+  "objRefs 数组——单图元叶返回 nil。"
+  ^ints [^BVH bvh]
+  (.objRefs ^IBvhMeta (.ext bvh))
 
 ;; ═══════════════════════════════════════════════
 ;; 数组版本——宏已展开——可安全调用

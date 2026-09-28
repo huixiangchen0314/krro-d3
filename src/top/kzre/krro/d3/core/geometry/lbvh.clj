@@ -11,8 +11,7 @@
   (:require
     [top.kzre.krro.d3.core.geometry.bvh :as bvh])
   (:import
-    (top.kzre.krro.d3.core.geometry.bvh BVH)
-    (top.kzre.krro.d3.core.geometry.lbvh LBVHBuildCtx)))
+    (top.kzre.krro.d3.core.geometry.bvh BVH LBVHBuildCtx)))
 
 (set! *unchecked-math* :warn-on-boxed)
 
