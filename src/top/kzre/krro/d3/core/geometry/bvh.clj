@@ -1,5 +1,6 @@
 (ns top.kzre.krro.d3.core.geometry.bvh
-  (:require [top.kzre.deflayout.core :refer [deflayout]])
+  (:require [top.kzre.deflayout.core :refer [deflayout]]
+            [top.kzre.krro.d3.core.geometry.aabb :as aabb])
   (:import (top.kzre.krro.d3.core.geometry SpatialRayHit SpatialOverlay IAABB IntersectionAlgo Ray Sphere)
            (top.kzre.krro.util.math KMath)))
 
@@ -75,26 +76,45 @@
   (set-aabb-max-y! bvh-data node-idx (.getMaxY aabb))
   (set-aabb-max-z! bvh-data node-idx (.getMaxZ aabb)))
 
-(defn merge-aabb!
-  [^floats bvh-data parent-idx left-idx right-idx]
-  (set-aabb-min-x! bvh-data parent-idx
-                   (KMath/min (aabb-min-x bvh-data left-idx)
-                              (aabb-min-x bvh-data right-idx)))
-  (set-aabb-min-y! bvh-data parent-idx
-                   (KMath/min (aabb-min-y bvh-data left-idx)
-                              (aabb-min-y bvh-data right-idx)))
-  (set-aabb-min-z! bvh-data parent-idx
-                   (KMath/min (aabb-min-z bvh-data left-idx)
-                              (aabb-min-z bvh-data right-idx)))
-  (set-aabb-max-x! bvh-data parent-idx
-                   (KMath/max (aabb-max-x bvh-data left-idx)
-                              (aabb-max-x bvh-data right-idx)))
-  (set-aabb-max-y! bvh-data parent-idx
-                   (KMath/max (aabb-max-y bvh-data left-idx)
-                              (aabb-max-y bvh-data right-idx)))
-  (set-aabb-max-z! bvh-data parent-idx
-                   (KMath/max (aabb-max-z bvh-data left-idx)
-                              (aabb-max-z bvh-data right-idx))))
+(defmacro merge-aabb!
+  "合并左右子 AABB 到父节点——宏——调用点展开。
+
+   布局知识全在 bvh.clj——本宏不涉及 AabbArray。"
+  [bvh-data parent-idx left-idx right-idx]
+  `(let [b# ~bvh-data
+         p# (int ~parent-idx)
+         l# (int ~left-idx)
+         r# (int ~right-idx)]
+     (set-aabb-min-x! b# p#
+                      (KMath/min (aabb-min-x b# l#)
+                                 (aabb-min-x b# r#)))
+     (set-aabb-min-y! b# p#
+                      (KMath/min (aabb-min-y b# l#)
+                                 (aabb-min-y b# r#)))
+     (set-aabb-min-z! b# p#
+                      (KMath/min (aabb-min-z b# l#)
+                                 (aabb-min-z b# r#)))
+     (set-aabb-max-x! b# p#
+                      (KMath/max (aabb-max-x b# l#)
+                                 (aabb-max-x b# r#)))
+     (set-aabb-max-y! b# p#
+                      (KMath/max (aabb-max-y b# l#)
+                                 (aabb-max-y b# r#)))
+     (set-aabb-max-z! b# p#
+                      (KMath/max (aabb-max-z b# l#)
+                                 (aabb-max-z b# r#)))))
+
+(defmacro write-aabb-from!
+  "从 AabbArray 布局的数组第 src-idx 槽写入 BVH 的 node-idx 槽。
+
+   布局知识全在 aabb.clj——本宏不硬编码下标。"
+  [bvh-data node-idx src src-idx]
+  `(do (set-aabb-min-x! ~bvh-data ~node-idx (aabb/aabb-min-x ~src ~src-idx))
+       (set-aabb-min-y! ~bvh-data ~node-idx (aabb/aabb-min-y ~src ~src-idx))
+       (set-aabb-min-z! ~bvh-data ~node-idx (aabb/aabb-min-z ~src ~src-idx))
+       (set-aabb-max-x! ~bvh-data ~node-idx (aabb/aabb-max-x ~src ~src-idx))
+       (set-aabb-max-y! ~bvh-data ~node-idx (aabb/aabb-max-y ~src ~src-idx))
+       (set-aabb-max-z! ~bvh-data ~node-idx (aabb/aabb-max-z ~src ~src-idx))))
 
 ;; ═══════════════════════════════════════════════
 ;; 对象版本——转发到数组版
