@@ -23,6 +23,12 @@
 (declare obj-v0-idx obj-v1-idx obj-loop-idx)
 (declare obj-set-v0-idx! obj-set-v1-idx! obj-set-loop-idx!)
 
+
+(deflayout BMEdgeAttrs
+           {:data [:float []]}    ; ← 空字段向量
+           {:unchecked-math? true})
+
+
 ;; ═══════════════════════════════════════════════
 ;; 连接
 ;; ═══════════════════════════════════════════════
