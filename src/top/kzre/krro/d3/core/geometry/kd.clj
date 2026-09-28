@@ -23,12 +23,12 @@
 ;; ═══════════════════════════════════════════════
 
 (declare split-pos set-split-pos!)
-(declare axis-v set-axis-v!)
+(declare axis-id set-axis-id!)
 (declare children-left children-right)
 (declare set-children-left! set-children-right!)
 
 (declare obj-split-pos obj-set-split-pos!)
-(declare obj-axis-v obj-set-axis-v!)
+(declare obj-axis-id obj-set-axis-id!)
 (declare obj-children-left obj-children-right)
 (declare obj-set-children-left! obj-set-children-right!)
 
@@ -44,13 +44,13 @@
 
 ;; 每节点：
 ;;   split-pos  float  分割平面位置
-;;   axis-v     byte   分割轴 0=X / 1=Y / 2=Z（见 Axis）
+;;   axis-id    byte   分割轴 0=X / 1=Y / 2=Z（见 Axis）
 ;;   left       int    左子索引；-1 表示叶
 ;;   right      int    右子索引；叶时为图元 id
 
 (deflayout KD
            {:split [:float [:split [:pos]]]
-            :axis  [:byte  [:axis [:v]]]
+            :axis  [:byte  [:axis  [:id]]]
             :child [:int   [:children [:left :right]]]}
            {:unchecked-math? true
             :ext?            true})
@@ -93,7 +93,7 @@
   "写入内部节点——轴 + 分割位置 + 左右子。"
   [split axis child node-idx axis-id split-pos left-idx right-idx]
   `(do (set-split-pos! ~split ~node-idx ~split-pos)
-       (set-axis-v!    ~axis  ~node-idx ~axis-id)
+       (set-axis-id!   ~axis  ~node-idx ~axis-id)
        (set-children-left!  ~child ~node-idx ~left-idx)
        (set-children-right! ~child ~node-idx ~right-idx)))
 
