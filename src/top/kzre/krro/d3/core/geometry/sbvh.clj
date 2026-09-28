@@ -82,23 +82,25 @@
    objRefs 长度 = primitiveCount。
 
    aabbs: float[]——AabbArray 布局——长度 = n × 6
-   n:     long——图元数
+   n:     图元数——long
 
    kwargs:
      :leaf-size  叶节点最大图元数——默认 8
 
    返回 BVH 实例——SBVHMeta 存于 ext。
    查询走 bvh/cross-query / bvh/sphere-query。"
-  ^BVH [^floats aabbs ^long n & {:keys [leaf-size] :or {leaf-size 8}}]
-  (if (zero? n)
-    (BVH. (float-array 0) (int-array 0) (SBVHMeta. 0 (int-array 0) 0))
-    (let [data  (allocate-aabb-array n)
-          child (allocate-child-array n)
-          prims (long-array n)]
-      (dotimes [i n] (aset prims i (long i)))
-      (let [ctx (SBVHBuildCtx. data child aabbs prims)]
-        (build-rec ctx 0 n leaf-size)
-        (BVH. data child
-              (SBVHMeta. n (.objRefs ctx) (.refCount ctx)))))))
+  ^BVH [^floats aabbs n & {:keys [leaf-size] :or {leaf-size 8}}]
+  (let [n         (long n)
+        leaf-size (long leaf-size)]
+    (if (zero? n)
+      (BVH. (float-array 0) (int-array 0) (SBVHMeta. 0 (int-array 0) 0))
+      (let [data  (allocate-aabb-array n)
+            child (allocate-child-array n)
+            prims (long-array (int n))]
+        (dotimes [i n] (aset prims i (long i)))
+        (let [ctx (SBVHBuildCtx. data child aabbs prims)]
+          (build-rec ctx 0 n leaf-size)
+          (BVH. data child
+                (SBVHMeta. n (.objRefs ctx) (.refCount ctx))))))))
 
 (set! *unchecked-math* nil)
