@@ -125,6 +125,7 @@
   clone-vertex-buffer-polled
   dispose-polled-vertex-buffer)
 
+;; 这个符号名称不能 declare
 (deflayout VertexBuffer
            {:vertices [:float [:vertex [:x :y :z]
                                :normal [:x :y :z]

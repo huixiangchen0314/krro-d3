@@ -9,6 +9,8 @@
    ^int     start-index   ;; 在全局 indices 数组中的起始位置
    ^int     count])       ;; 三角形数量（每三角形3个索引，实际索引数 = count*3）
 
+(defprotocol IMesh
+  )
 
 (defrecord TrunkedMesh
   [chunks       ;; 向量，元素为 TrunkHandle
@@ -16,7 +18,8 @@
    edge-table
    submeshes
    ^floats  lbvh-nodes
-   ^boolean lbvh-dirty?])
+   ^boolean lbvh-dirty?]
+  IMesh)
 
 ;; ──────────────────────────────────────────────
 ;; 工厂函数
@@ -31,3 +34,5 @@
     (or submeshes [])
     (or lbvh-nodes nil)        ;; 初始可以为 nil，表示未构建
     (boolean (or lbvh-dirty? true)))) ;; 默认脏，需要构建
+
+
