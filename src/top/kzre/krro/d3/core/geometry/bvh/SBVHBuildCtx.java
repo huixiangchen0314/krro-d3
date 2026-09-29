@@ -1,15 +1,19 @@
 package top.kzre.krro.d3.core.geometry.bvh;
 
+import top.kzre.krro.d3.core.util.FloatList;
+import top.kzre.krro.d3.core.util.IntList;
+
 /**
  * SBVH 构建上下文——节点数组 + 引用列表 + objRefs。
  *
- * <p>两套引用数组：
+ * <p>两套列表：
  * <ul>
  *   <li>{@code refPrims} / {@code refAabbs}——分区用——会增长</li>
  *   <li>{@code objRefs}——叶节点输出——只增</li>
  * </ul>
  *
- * <p>分区采用"追加"模式——每次分区从 refs 尾部追加左右两组。
+ * <p>列表负责扩容。外部通过 {@link #refAabbs()} / {@link #refPrims()} /
+ * {@link #objRefs()} 拿原始数组——不要缓存——列表扩容后失效。
  *
  * <p><b>非线程安全</b>。
  */
@@ -18,32 +22,19 @@ public final class SBVHBuildCtx {
     public final float[] data;
     public final int[]   child;
 
-    // ─── refs——分区用 ───
-
-    private int[]   refPrims;
-    private float[] refAabbs;
-    private int     refCapacity;
-    private int     refCount;
-
-    // ─── objRefs——叶输出 ───
-
-    private int[] objRefs;
-    private int   objRefCapacity;
-    private int   objRefCount;
+    private final IntList   refPrims;
+    private final FloatList refAabbs;
+    private final IntList   objRefs;
 
     private long nextIdx;
 
     public SBVHBuildCtx(float[] data, int[] child, int initialCapacity) {
-        this.data           = data;
-        this.child          = child;
-        this.refPrims       = new int[initialCapacity];
-        this.refAabbs       = new float[initialCapacity * 6];
-        this.refCapacity    = initialCapacity;
-        this.refCount       = 0;
-        this.objRefs        = new int[initialCapacity];
-        this.objRefCapacity = initialCapacity;
-        this.objRefCount    = 0;
-        this.nextIdx        = 0L;
+        this.data     = data;
+        this.child    = child;
+        this.refPrims = new IntList(initialCapacity);
+        this.refAabbs = new FloatList(initialCapacity * 6);
+        this.objRefs  = new IntList(initialCapacity);
+        this.nextIdx  = 0L;
     }
 
     // ═══════════════════════════════════════════════
@@ -60,26 +51,24 @@ public final class SBVHBuildCtx {
     // refs 访问——供 SbvhSelect 用
     // ═══════════════════════════════════════════════
 
-    public int[]   refPrims()    { return refPrims; }
-    public float[] refAabbs()    { return refAabbs; }
-    public int     refCount()    { return refCount; }
-    public int     refCapacity() { return refCapacity; }
+    /** 当前 refs 的 prim id 数组——列表扩容后失效。 */
+    public int[] refPrims() { return refPrims.rawArray(); }
 
-    /** 供 SbvhSelect 分区后调整 refCount。 */
-    public void setRefCount(int n) { this.refCount = n; }
+    /** 当前 refs 的 AABB 数组——6 float / ref——列表扩容后失效。 */
+    public float[] refAabbs() { return refAabbs.rawArray(); }
 
-    /** 确保 refs 容量。可能重新分配数组——调用后要重新获取数组引用。 */
+    public int refCount() { return refPrims.size(); }
+
+    /** 分区后调整 refCount——外部已通过 rawArray 写入。 */
+    public void setRefCount(int n) {
+        refPrims.setSize(n);
+        refAabbs.setSize(n * 6);
+    }
+
+    /** 确保 refs 容量。可能触发列表扩容——外部缓存的数组引用失效。 */
     public void ensureRefCapacity(int min) {
-        if (min <= refCapacity) return;
-        int newCap = refCapacity;
-        while (newCap < min) newCap *= 2;
-        int[]   np = new int[newCap];
-        float[] na = new float[newCap * 6];
-        System.arraycopy(refPrims, 0, np, 0, refCount);
-        System.arraycopy(refAabbs, 0, na, 0, refCount * 6);
-        refPrims    = np;
-        refAabbs    = na;
-        refCapacity = newCap;
+        refPrims.ensureCapacity(min);
+        refAabbs.ensureCapacity(min * 6);
     }
 
     // ═══════════════════════════════════════════════
@@ -88,33 +77,33 @@ public final class SBVHBuildCtx {
 
     /**
      * 从 AabbArray 布局的源数组初始化 refs。
-     *
-     * @param src       AabbArray 布局的 AABB 数组
-     * @param startPrim 起始图元 id
-     * @param count     图元数
+     * 清空后重新填充——refCount = count。
      */
     public void initRefsFromAabbArray(float[] src, int startPrim, int count) {
-        ensureRefCapacity(count);
+        refPrims.clear();
+        refAabbs.clear();
+        refPrims.ensureCapacity(count);
+        refAabbs.ensureCapacity(count * 6);
         for (int i = 0; i < count; i++) {
             int srcBase = (startPrim + i) * 6;
-            int dstBase = i * 6;
-            refPrims[i] = startPrim + i;
-            refAabbs[dstBase]     = src[srcBase];
-            refAabbs[dstBase + 1] = src[srcBase + 1];
-            refAabbs[dstBase + 2] = src[srcBase + 2];
-            refAabbs[dstBase + 3] = src[srcBase + 3];
-            refAabbs[dstBase + 4] = src[srcBase + 4];
-            refAabbs[dstBase + 5] = src[srcBase + 5];
+            refPrims.add(startPrim + i);
+            refAabbs.add(src[srcBase]);
+            refAabbs.add(src[srcBase + 1]);
+            refAabbs.add(src[srcBase + 2]);
+            refAabbs.add(src[srcBase + 3]);
+            refAabbs.add(src[srcBase + 4]);
+            refAabbs.add(src[srcBase + 5]);
         }
-        refCount = count;
     }
 
     // ═══════════════════════════════════════════════
     // objRefs 访问
     // ═══════════════════════════════════════════════
 
-    public int[] objRefs()     { return objRefs; }
-    public int   objRefCount() { return objRefCount; }
+    /** objRefs 数组——列表扩容后失效。 */
+    public int[] objRefs() { return objRefs.rawArray(); }
+
+    public int objRefCount() { return objRefs.size(); }
 
     /**
      * 把 refs[start, end) 的 prim id 追加到 objRefs。
@@ -123,20 +112,8 @@ public final class SBVHBuildCtx {
      */
     public int appendObjRefsFromRefs(int start, int end) {
         int count = end - start;
-        ensureObjRefCapacity(objRefCount + count);
-        int objStart = objRefCount;
-        System.arraycopy(refPrims, start, objRefs, objStart, count);
-        objRefCount += count;
+        int objStart = objRefs.size();
+        objRefs.addAll(refPrims.rawArray(), start, count);
         return objStart;
-    }
-
-    private void ensureObjRefCapacity(int min) {
-        if (min <= objRefCapacity) return;
-        int newCap = objRefCapacity;
-        while (newCap < min) newCap *= 2;
-        int[] no = new int[newCap];
-        System.arraycopy(objRefs, 0, no, 0, objRefCount);
-        objRefs        = no;
-        objRefCapacity = newCap;
     }
 }
