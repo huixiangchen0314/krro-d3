@@ -1,76 +1,142 @@
 package top.kzre.krro.d3.core.geometry.bvh;
 
 /**
- * SBVH 构建上下文——打包递归构建所需的共享数据。
+ * SBVH 构建上下文——节点数组 + 引用列表 + objRefs。
  *
- * <p><b>objRefs 动态增长</b>：初始 2N 容量——满了翻倍。
- * 阶段 1：每个图元只写一次——refCount 最终等于 primitiveCount。
- * 阶段 2：空间分裂——同一图元可能写多次——refCount 可大于 N。
+ * <p>两套引用数组：
+ * <ul>
+ *   <li>{@code refPrims} / {@code refAabbs}——分区用——会增长</li>
+ *   <li>{@code objRefs}——叶节点输出——只增</li>
+ * </ul>
  *
- * <p><b>非线程安全</b>：仅限单线程构建使用。
+ * <p>分区采用"追加"模式——每次分区从 refs 尾部追加左右两组。
+ *
+ * <p><b>非线程安全</b>。
  */
 public final class SBVHBuildCtx {
 
     public final float[] data;
     public final int[]   child;
-    public final float[] aabbs;
-    public final long[]  prims;
+
+    // ─── refs——分区用 ───
+
+    private int[]   refPrims;
+    private float[] refAabbs;
+    private int     refCapacity;
+    private int     refCount;
+
+    // ─── objRefs——叶输出 ───
 
     private int[] objRefs;
-    private int   refCount;
-    private long  nextIdx;
+    private int   objRefCapacity;
+    private int   objRefCount;
 
-    public SBVHBuildCtx(float[] data, int[] child,
-                        float[] aabbs, long[] prims) {
-        this.data     = data;
-        this.child    = child;
-        this.aabbs    = aabbs;
-        this.prims    = prims;
-        this.objRefs  = new int[prims.length * 2];
-        this.refCount = 0;
-        this.nextIdx  = 0L;
+    private long nextIdx;
+
+    public SBVHBuildCtx(float[] data, int[] child, int initialCapacity) {
+        this.data           = data;
+        this.child          = child;
+        this.refPrims       = new int[initialCapacity];
+        this.refAabbs       = new float[initialCapacity * 6];
+        this.refCapacity    = initialCapacity;
+        this.refCount       = 0;
+        this.objRefs        = new int[initialCapacity];
+        this.objRefCapacity = initialCapacity;
+        this.objRefCount    = 0;
+        this.nextIdx        = 0L;
     }
 
-    /** 分配下一个节点索引——前序分配。 */
+    // ═══════════════════════════════════════════════
+    // 节点索引
+    // ═══════════════════════════════════════════════
+
     public long allocIdx() {
         long n = nextIdx;
         nextIdx = n + 1L;
         return n;
     }
 
+    // ═══════════════════════════════════════════════
+    // refs 访问——供 SbvhSelect 用
+    // ═══════════════════════════════════════════════
+
+    public int[]   refPrims()    { return refPrims; }
+    public float[] refAabbs()    { return refAabbs; }
+    public int     refCount()    { return refCount; }
+    public int     refCapacity() { return refCapacity; }
+
+    /** 供 SbvhSelect 分区后调整 refCount。 */
+    public void setRefCount(int n) { this.refCount = n; }
+
+    /** 确保 refs 容量。可能重新分配数组——调用后要重新获取数组引用。 */
+    public void ensureRefCapacity(int min) {
+        if (min <= refCapacity) return;
+        int newCap = refCapacity;
+        while (newCap < min) newCap *= 2;
+        int[]   np = new int[newCap];
+        float[] na = new float[newCap * 6];
+        System.arraycopy(refPrims, 0, np, 0, refCount);
+        System.arraycopy(refAabbs, 0, na, 0, refCount * 6);
+        refPrims    = np;
+        refAabbs    = na;
+        refCapacity = newCap;
+    }
+
+    // ═══════════════════════════════════════════════
+    // refs 初始化——从 AabbArray 布局
+    // ═══════════════════════════════════════════════
+
     /**
-     * 将 prims[start, end) 的图元 id 复制到 objRefs。
+     * 从 AabbArray 布局的源数组初始化 refs。
      *
-     * @param start prims 起始索引（含）
-     * @param end   prims 结束索引（不含）
+     * @param src       AabbArray 布局的 AABB 数组
+     * @param startPrim 起始图元 id
+     * @param count     图元数
+     */
+    public void initRefsFromAabbArray(float[] src, int startPrim, int count) {
+        ensureRefCapacity(count);
+        for (int i = 0; i < count; i++) {
+            int srcBase = (startPrim + i) * 6;
+            int dstBase = i * 6;
+            refPrims[i] = startPrim + i;
+            refAabbs[dstBase]     = src[srcBase];
+            refAabbs[dstBase + 1] = src[srcBase + 1];
+            refAabbs[dstBase + 2] = src[srcBase + 2];
+            refAabbs[dstBase + 3] = src[srcBase + 3];
+            refAabbs[dstBase + 4] = src[srcBase + 4];
+            refAabbs[dstBase + 5] = src[srcBase + 5];
+        }
+        refCount = count;
+    }
+
+    // ═══════════════════════════════════════════════
+    // objRefs 访问
+    // ═══════════════════════════════════════════════
+
+    public int[] objRefs()     { return objRefs; }
+    public int   objRefCount() { return objRefCount; }
+
+    /**
+     * 把 refs[start, end) 的 prim id 追加到 objRefs。
+     *
      * @return objRefs 中的起始索引
      */
-    public int allocRefsFromPrims(int start, int end) {
+    public int appendObjRefsFromRefs(int start, int end) {
         int count = end - start;
-        if (count <= 0) {
-            return refCount;
-        }
-        ensureCapacity(refCount + count);
-        int startRef = refCount;
-        for (int i = start; i < end; i++) {
-            objRefs[refCount++] = (int) prims[i];
-        }
-        return startRef;
+        ensureObjRefCapacity(objRefCount + count);
+        int objStart = objRefCount;
+        System.arraycopy(refPrims, start, objRefs, objStart, count);
+        objRefCount += count;
+        return objStart;
     }
 
-    private void ensureCapacity(int minCap) {
-        if (minCap > objRefs.length) {
-            int newCap = objRefs.length;
-            while (newCap < minCap) {
-                newCap = newCap < 1024 ? newCap * 2 : newCap + (newCap >> 1);
-            }
-            int[] bigger = new int[newCap];
-            System.arraycopy(objRefs, 0, bigger, 0, refCount);
-            objRefs = bigger;
-        }
+    private void ensureObjRefCapacity(int min) {
+        if (min <= objRefCapacity) return;
+        int newCap = objRefCapacity;
+        while (newCap < min) newCap *= 2;
+        int[] no = new int[newCap];
+        System.arraycopy(objRefs, 0, no, 0, objRefCount);
+        objRefs        = no;
+        objRefCapacity = newCap;
     }
-
-    public int[] objRefs()  { return objRefs; }
-    public int   refCount() { return refCount; }
-    public long  nextIdx()  { return nextIdx; }
 }
