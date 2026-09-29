@@ -3,26 +3,16 @@
 
    阶段 2：跨越分割面的图元复制到两侧——AABB 裁剪。
 
+   节点数组动态增长——SBVH 的 ref 膨胀导致节点数不确定。
+
    查询统一走 bvh 命名空间。"
   (:require
     [top.kzre.krro.d3.core.geometry.bvh :as bvh])
   (:import
-    (top.kzre.krro.d3.core.geometry.bvh BVH SBVHBuildCtx SBVHMeta SbvhSelect SbvhSelect$PartitionResult)))
+    (top.kzre.krro.d3.core.geometry.bvh BVH SBVHBuildCtx SBVHMeta SbvhSelect
+                                        SbvhSelect$PartitionResult)))
 
 (set! *unchecked-math* true)
-
-;; ═══════════════════════════════════════════════
-;; 节点数组分配
-;; ═══════════════════════════════════════════════
-
-(defn- node-count ^long [^long n]
-  (if (<= n 1) 1 (- (* 2 n) 1)))
-
-(defn- allocate-aabb-array ^floats [^long n]
-  (float-array (* (node-count n) 6)))
-
-(defn- allocate-child-array ^ints [^long n]
-  (int-array (* (node-count n) 2)))
 
 ;; ═══════════════════════════════════════════════
 ;; 叶节点写入
@@ -34,8 +24,8 @@
    objRefs 追加 prim ids。
    返回 node-idx。"
   ^long [^SBVHBuildCtx ctx ^long node-idx ^long start ^long end]
-  (let [^floats data     (.data ctx)
-        ^ints   child    (.child ctx)
+  (let [^floats data     (.dataArray ctx)
+        ^ints   child    (.childArray ctx)
         ^floats ref-aabbs (.refAabbs ctx)
         n (- end start)
         obj-start (.appendObjRefsFromRefs ctx (int start) (int end))]
@@ -69,6 +59,21 @@
     node-idx))
 
 ;; ═══════════════════════════════════════════════
+;; 内部节点写入——递归后重新获取数组
+;; ═══════════════════════════════════════════════
+
+(defn- write-internal-after-rec!
+  "递归完成后写内部节点——重新获取 data / child——
+   因为递归可能触发扩容。"
+  ^long [^SBVHBuildCtx ctx ^long idx ^long l ^long r]
+  (let [^floats data  (.dataArray ctx)
+        ^ints   child (.childArray ctx)]
+    (bvh/merge-aabb! data (int idx) (int l) (int r))
+    (bvh/set-children-left!  child (int idx) (int l))
+    (bvh/set-children-right! child (int idx) (int r))
+    idx))
+
+;; ═══════════════════════════════════════════════
 ;; 递归构建
 ;; ═══════════════════════════════════════════════
 
@@ -85,17 +90,11 @@
           (let [mid (+ start (quot n 2))
                 l   (build-rec ctx start mid leaf-size)
                 r   (build-rec ctx mid end leaf-size)]
-            (bvh/merge-aabb! (.data ctx) (int idx) (int l) (int r))
-            (bvh/set-children-left!  (.child ctx) (int idx) (int l))
-            (bvh/set-children-right! (.child ctx) (int idx) (int r))
-            idx)
+            (write-internal-after-rec! ctx idx l r))
           ;; 正常——递归左右分区
           (let [l (build-rec ctx (.-leftStart res)  (.-leftEnd res)  leaf-size)
                 r (build-rec ctx (.-rightStart res) (.-rightEnd res) leaf-size)]
-            (bvh/merge-aabb! (.data ctx) (int idx) (int l) (int r))
-            (bvh/set-children-left!  (.child ctx) (int idx) (int l))
-            (bvh/set-children-right! (.child ctx) (int idx) (int r))
-            idx))))))
+            (write-internal-after-rec! ctx idx l r)))))))
 
 ;; ═══════════════════════════════════════════════
 ;; 入口
@@ -116,18 +115,12 @@
         leaf-size (long leaf-size)]
     (if (zero? n)
       (BVH. (float-array 0) (int-array 0) (SBVHMeta. 0 (int-array 0) 0))
-      (let [data    (allocate-aabb-array n)
-            child   (allocate-child-array n)
-            initial (* 4 n)
-            ctx     (SBVHBuildCtx. data child initial)]
-        ;; 初始化 refs——从 AabbArray 布局
+      (let [initial-nodes (* 4 n)
+            initial-refs  (* 4 n)
+            ctx           (SBVHBuildCtx. initial-nodes initial-refs)]
         (.initRefsFromAabbArray ctx aabbs 0 (int n))
-
-        ;; 递归构建
         (build-rec ctx 0 n leaf-size)
-
-        ;; 输出 BVH + SBVHMeta
-        (BVH. data child
+        (BVH. (.dataArray ctx) (.childArray ctx)
               (SBVHMeta. n (.objRefs ctx) (.objRefCount ctx)))))))
 
 (set! *unchecked-math* nil)
