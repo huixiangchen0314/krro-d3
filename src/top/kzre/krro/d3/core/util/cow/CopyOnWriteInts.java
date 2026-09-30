@@ -1,4 +1,4 @@
-package top.kzre.krro.d3.core.util;
+package top.kzre.krro.d3.core.util.cow;
 
 import top.kzre.krro.util.arena.AllocateResult;
 import top.kzre.krro.util.arena.ArenaAllocationException;

@@ -1,4 +1,4 @@
-package top.kzre.krro.d3.core.util;
+package top.kzre.krro.d3.core.util.cow;
 
 /**
  * <p><b>线程契约</b>：

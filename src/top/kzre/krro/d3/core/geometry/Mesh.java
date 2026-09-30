@@ -1,8 +1,8 @@
 package top.kzre.krro.d3.core.geometry;
 
-import top.kzre.krro.d3.core.util.CopyOnWrite;
-import top.kzre.krro.d3.core.util.CopyOnWriteFloats;
-import top.kzre.krro.d3.core.util.CopyOnWriteInts;
+import top.kzre.krro.d3.core.util.cow.CopyOnWrite;
+import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
+import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
 
 import java.util.ArrayList;
 import java.util.Collections;
