@@ -1,6 +1,6 @@
 {:paths ["src" "resources"
          ;; FOR repl
-         ;"target/classes"
+         "target/classes"
          ]
  :deps {org.clojure/clojure {:mvn/version "1.11.1"}
         top.kzre/deflayout {:mvn/version "0.1.0"}

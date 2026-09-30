@@ -25,6 +25,7 @@
    对应 BMesh 字段：
      edgeEndpoints  ← BMEdgeEndpoints（v0 / v1）
      edgeLoops      ← BMEdgeLoops（径向环入口）"
+  (:refer-clojure :exclude [loop])
   (:require
     [top.kzre.deflayout.core :refer [deflayout]]))
 

@@ -273,7 +273,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     // 便利工厂——create
     // ═══════════════════════════════════════════════
 
-    private static <T> CopyOnWriteObject<ListResource<T>> emptyList() {
+    private static <T extends CopyOnWrite<T>> CopyOnWriteObject<ListResource<T>> emptyList() {
         return new CopyOnWriteObject<>(new ListResource<>());
     }
 

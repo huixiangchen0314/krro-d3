@@ -4,26 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * List 资源——包装一个 List——引用计数 + COW 复制。
+ * List 资源——元素约束为 {@link CopyOnWrite}。
  *
- * <p><b>使用模式</b>：
- * <pre>
- *   CopyOnWriteObject&lt;ListResource&lt;BMeshBlock&gt;&gt; cow =
- *       new CopyOnWriteObject&lt;&gt;(new ListResource&lt;&gt;(new ArrayList&lt;&gt;()));
+ * <p><b>深度 COW</b>：{@link #copy()} 对每个元素调用 {@code shared()}——
+ * 保证段对象隔离——两层 COW 一起工作。
  *
- *   // 读
- *   List&lt;BMeshBlock&gt; snap = cow.getSnapshot().list();
+ * <p><b>null 支持</b>：段列表允许 null（空段）——copy 时保留 null。
  *
- *   // 写——共享时自动复制
- *   List&lt;BMeshBlock&gt; w = cow.getForWrite().list();
- *   w.add(block);
- * </pre>
- *
- * <p><b>契约</b>：通过 {@link #getList()} 拿到的 List 可读可写——
- * 但调用方必须保证是在 {@code getForWrite()} 之后拿的——
- * 否则可能修改共享数据。
+ * <p><b>onDispose</b>：每个元素独立 try-close——
+ * 避免一个失败导致其余泄漏——收集所有异常——最后抛。
  */
-public final class ListResource<T> extends AbstractResource<ListResource<T>> {
+public final class ListResource<T extends CopyOnWrite<T>>
+        extends AbstractResource<ListResource<T>> {
 
     private final List<T> list;
 
@@ -35,22 +27,39 @@ public final class ListResource<T> extends AbstractResource<ListResource<T>> {
         this.list = new ArrayList<>(initial);
     }
 
-    /**
-     * 底层 List——可读可写。
-     *
-     * <p><b>契约</b>：只有在 {@code getForWrite()} 之后调用才是安全的写访问。
-     */
-    public List<T> getList() {
-        return list;
-    }
+    /** 底层 List——可读可写——写前须经 getForWrite。 */
+    public List<T> getList() { return list; }
 
     @Override
     public ListResource<T> copy() {
-        return new ListResource<>(new ArrayList<>(list));
+        int n = list.size();
+        List<T> newList = new ArrayList<>(n);
+        for (T item : list) {
+            newList.add(item == null ? null : item.shared());
+        }
+        return new ListResource<>(newList);
     }
 
     @Override
     protected void onDispose() {
+        Throwable first = null;
+        int n = list.size();
+        for (T item : list) {
+            if (item == null) continue;
+            try {
+                item.close();
+            } catch (Throwable t) {
+                if (first == null) {
+                    first = t;
+                } else {
+                    first.addSuppressed(t);
+                }
+            }
+        }
         list.clear();
+
+        if (first != null) {
+            throw new RuntimeException("ListResource.onDispose() failed", first);
+        }
     }
 }

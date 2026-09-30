@@ -26,6 +26,7 @@
      faceNormals     ← BMFaceNormals（normal）
      faceSubmeshIds  ← BMFaceSubmeshIds（submesh）
      faceTopology    ← BMFaceTopology（loop.idx / loop.len）"
+  (:refer-clojure :exclude [loop])
   (:require
     [top.kzre.deflayout.core :refer [deflayout]]))
 

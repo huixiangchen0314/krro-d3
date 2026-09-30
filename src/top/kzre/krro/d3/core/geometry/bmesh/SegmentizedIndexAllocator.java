@@ -12,12 +12,13 @@ import top.kzre.krro.d3.core.util.IntQueue;
  *   <li>否则 → 追加新索引（nextIndex++）</li>
  * </ul>
  *
- * <p><b>段激活 / 失活</b>：每个段维护活跃元素计数。
+ * <p><b>段活跃计数</b>：每段维护活跃元素计数。
  * <ul>
- *   <li>0 → 1：通知 {@link SegmentListener#onSegmentActivate}</li>
- *   <li>1 → 0：通知 {@link SegmentListener#onSegmentDeactivate}</li>
+ *   <li>0 → 1：段从空变为非空</li>
+ *   <li>1 → 0：段从非空变为空</li>
  * </ul>
- * 监听器可为 null——跳过通知。
+ * 本类只维护计数——段底层分配 / 释放由编辑层拉模式处理——
+ * 无监听器——与 COW 隔离兼容。
  *
  * <p><b>段索引</b>：segmentIndex = index / segmentSize——
  * 段列表只追加——segmentIndex 永久稳定。
@@ -25,15 +26,6 @@ import top.kzre.krro.d3.core.util.IntQueue;
  * <p><b>线程契约</b>：非线程安全。
  */
 public final class SegmentizedIndexAllocator {
-
-    /** 段激活 / 失活监听器。 */
-    public interface SegmentListener {
-        /** 段从空变为非空。 */
-        void onSegmentActivate(int segmentIndex);
-
-        /** 段从非空变为空。 */
-        void onSegmentDeactivate(int segmentIndex);
-    }
 
     // ═══════════════════════════════════════════════
     // 字段
@@ -51,9 +43,6 @@ public final class SegmentizedIndexAllocator {
     /** 每段活跃元素计数——IntList 自动扩容。 */
     private final IntList segmentActive = new IntList();
 
-    /** 段激活 / 失活监听器——可为 null。 */
-    private SegmentListener listener;
-
     // ═══════════════════════════════════════════════
     // 构造
     // ═══════════════════════════════════════════════
@@ -68,21 +57,11 @@ public final class SegmentizedIndexAllocator {
     }
 
     // ═══════════════════════════════════════════════
-    // 监听器
-    // ═══════════════════════════════════════════════
-
-    public void setListener(SegmentListener listener) {
-        this.listener = listener;
-    }
-
-    // ═══════════════════════════════════════════════
     // 分配 / 释放
     // ═══════════════════════════════════════════════
 
     /**
      * 分配索引——优先复用空闲——否则追加新索引。
-     *
-     * <p>段活跃计数 0 → 1 时——通知监听器段激活。
      *
      * @return 索引——非负
      */
@@ -101,20 +80,11 @@ public final class SegmentizedIndexAllocator {
         int active = segmentActive.get(segId);
         segmentActive.set(segId, active + 1);
 
-        if (active == 0) {
-            // 0 → 1——段激活
-            if (listener != null) {
-                listener.onSegmentActivate(segId);
-            }
-        }
-
         return index;
     }
 
     /**
      * 释放索引——进入空闲队列。
-     *
-     * <p>段活跃计数 1 → 0 时——通知监听器段失活。
      *
      * @param index 待释放索引——须 &gt;= 0
      */
@@ -136,13 +106,6 @@ public final class SegmentizedIndexAllocator {
         }
 
         segmentActive.set(segId, active - 1);
-
-        if (active - 1 == 0) {
-            // 1 → 0——段失活
-            if (listener != null) {
-                listener.onSegmentDeactivate(segId);
-            }
-        }
 
         freeQueue.enqueue(index);
     }
@@ -221,14 +184,13 @@ public final class SegmentizedIndexAllocator {
     }
 
     /**
-     * 深拷贝——nextIndex / segmentActive / freeQueue / listener 全部复制。
+     * 深拷贝——nextIndex / segmentActive / freeQueue 全部复制。
      *
      * <p>用于 BMesh.shared() —— 两个 BMesh 各自独立演化。
      */
     public SegmentizedIndexAllocator copy() {
         SegmentizedIndexAllocator c = new SegmentizedIndexAllocator(segmentSize);
         c.nextIndex = this.nextIndex;
-        c.listener  = this.listener;
 
         // segmentActive —— IntList 复制
         int n = this.segmentActive.size();
@@ -239,5 +201,4 @@ public final class SegmentizedIndexAllocator {
 
         return c;
     }
-
 }

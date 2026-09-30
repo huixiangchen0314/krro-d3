@@ -35,6 +35,7 @@
      loopOwnership   ← BMLoopOwnership（vert / edge / face）
      loopRing        ← BMLoopRing（next / prev）
      loopRadialRing  ← BMLoopRadialRing（radial-next / radial-prev）"
+  (:refer-clojure :exclude [next])
   (:require
     [top.kzre.deflayout.core :refer [deflayout]]))
 
