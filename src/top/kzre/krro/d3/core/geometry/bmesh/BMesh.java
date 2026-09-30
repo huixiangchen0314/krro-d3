@@ -39,7 +39,23 @@ import top.kzre.krro.d3.core.util.cow.ListResource;
  *   faceNormals        float3   normal
  *   faceSubmeshIds     int      submesh id
  *   faceTopology       int2     loop, len
+ *
+ * vert:
+ *     outEdges[v]     → 一条出边
+ *
+ * edge:
+ *     endpoints[e]    → (v0, v1)
+ *     loops[e]        → 径向环入口
+ *
+ * loop:
+ *     ownership[l]    → (vert, edge, face)
+ *     ring[l]         → (next, prev)
+ *     radialRing[l]   → (radial-next, radial-prev)
+ *
+ * face:
+ *     topology[f]     → (loop, len)
  * </pre>
+ *
  *
  * <p><b>顶点法线不在 BMesh</b>：顶点法线仅在全平滑时有意义——
  * 本质是面角法线的一个特例——由烘焙期从面法线算出——不在

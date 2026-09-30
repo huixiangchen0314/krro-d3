@@ -30,7 +30,7 @@
      短——调用点 (seg/writef ...) 流畅"
   (:import
     [java.util List]
-    (top.kzre.krro.d3.core.geometry.bmesh BMesh BMeshEditor)
+    (top.kzre.krro.d3.core.geometry.bmesh BMesh)
     (top.kzre.krro.d3.core.util.cow
       CopyOnWriteFloats
       CopyOnWriteInts
