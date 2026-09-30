@@ -19,7 +19,7 @@ import java.util.List;
  *   w.add(block);
  * </pre>
  *
- * <p><b>契约</b>：通过 {@link #list()} 拿到的 List 可读可写——
+ * <p><b>契约</b>：通过 {@link #getList()} 拿到的 List 可读可写——
  * 但调用方必须保证是在 {@code getForWrite()} 之后拿的——
  * 否则可能修改共享数据。
  */
@@ -40,7 +40,7 @@ public final class ListResource<T> extends AbstractResource<ListResource<T>> {
      *
      * <p><b>契约</b>：只有在 {@code getForWrite()} 之后调用才是安全的写访问。
      */
-    public List<T> list() {
+    public List<T> getList() {
         return list;
     }
 

@@ -165,9 +165,19 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     // ═══════════════════════════════════════════════
 
     /**
-     * 全参构造器——所有 COW 对象由调用方提供——所有权转移。
+     * 全参构造器——private。
+     *
+     * <p><b>外部不直接构造</b>：符合 Clojure 持久化数据结构的惯例——
+     * 通过工厂方法创建——保证内部一致性。
+     *
+     * <p>调用方：
+     * <ul>
+     *   <li>{@link #create(int)} —— 常用——统一段大小</li>
+     *   <li>{@link #create(int, int, int, int)} —— 各元素不同段大小</li>
+     *   <li>{@link #shared()} —— 共享副本</li>
+     * </ul>
      */
-    public BMesh(
+    private  BMesh(
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> vertPositions,
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   vertOutEdges,
 

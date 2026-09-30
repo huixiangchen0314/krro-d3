@@ -35,7 +35,7 @@
 
 ;; BMFaceNormals
 (declare normal-x normal-y normal-z)
-(declare set-normal-x! set-normal-y! set-normal-z!)
+(declare set-normal! set-normal-x! set-normal-y! set-normal-z!)
 (declare obj-normal-x obj-normal-y obj-normal-z)
 (declare obj-set-normal-x! obj-set-normal-y! obj-set-normal-z!)
 

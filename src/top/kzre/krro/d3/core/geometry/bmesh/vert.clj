@@ -27,7 +27,7 @@
 
 ;; BMVertAttrs
 (declare position-x position-y position-z)
-(declare set-position-x! set-position-y! set-position-z!)
+(declare set-position! set-position-x! set-position-y! set-position-z!)
 (declare obj-position-x obj-position-y obj-position-z)
 (declare obj-set-position-x! obj-set-position-y! obj-set-position-z!)
 

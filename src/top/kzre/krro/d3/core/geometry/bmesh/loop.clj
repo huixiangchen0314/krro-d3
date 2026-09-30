@@ -57,8 +57,8 @@
 (declare obj-face-idx obj-set-face-idx!)
 
 ;; BMLoopRing
-(declare next-idx set-next-idx!)
-(declare prev-idx set-prev-idx!)
+(declare next-idx set-next-idx! radial-next-idx)
+(declare prev-idx set-prev-idx! radial-prev-idx)
 (declare obj-next-idx obj-set-next-idx!)
 (declare obj-prev-idx obj-set-prev-idx!)
 
