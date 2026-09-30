@@ -15,6 +15,11 @@ public final class ImmutableAABB implements IAABB {
     private final float maxY;
     private final float maxZ;
 
+    public static final ImmutableAABB EMPTY = new ImmutableAABB(
+            Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+            Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
+            Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
+
     public ImmutableAABB(float minX, float minY, float minZ,
                          float maxX, float maxY, float maxZ) {
         this.minX = minX;
