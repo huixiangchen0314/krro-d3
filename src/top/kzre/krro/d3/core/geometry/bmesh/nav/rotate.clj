@@ -70,20 +70,20 @@
 ;; 入口——中立（无流形假设）
 ;; ═══════════════════════════════════════════════
 
-(defn loop-at-edge-vert ^long
+(defn loop-at-edge-vert
   "在边 e 上——找 .vert == v 的 loop。
    无——返回 -1。"
-  [^BMeshEditor editor ^long e ^long v]
+  ^long [^BMeshEditor editor ^long e ^long v]
   (let [l (long (step/edge-loop editor e))]
     (cond
       (== l -1)  -1
       (== (long (step/loop-vert editor l)) v)  l
       :else  (step/loop-next editor l))))
 
-(defn first-loop-from-vert ^long
+(defn first-loop-from-vert
   "从顶点 v 出发——找一条绕 v 的 loop。
    孤立顶点——返回 -1。"
-  [^BMeshEditor editor ^long v]
+  ^long [^BMeshEditor editor ^long v]
   (let [e (long (step/vert-out-edge editor v))]
     (if (== e -1)
       -1
@@ -93,7 +93,7 @@
 ;; 流形专用——O(1)
 ;; ═══════════════════════════════════════════════
 
-(defn next-loop-around-vert-manifold ^long
+(defn next-loop-around-vert-manifold
   "绕 l.vert 的下一条 loop——流形专用——O(1)。
 
    公式：
@@ -101,7 +101,7 @@
              = (l.radial-next).next        if r.vert == w
 
    边界——返回 -1。"
-  [^BMeshEditor editor ^long l]
+  ^long [^BMeshEditor editor ^long l]
   (let [v (long (step/loop-vert editor l))
         r (long (step/loop-radial-next editor l))]
     (cond
@@ -110,14 +110,14 @@
       (== (long (step/loop-vert editor r)) v)  r
       :else  (step/loop-next editor r))))
 
-(defn prev-loop-around-vert-manifold ^long
+(defn prev-loop-around-vert-manifold
   "绕 l.vert 的上一条 loop——流形专用——O(1)。
 
    公式：
      prev(l) = (l.prev).radial-prev
 
    边界——返回 -1。"
-  [^BMeshEditor editor ^long l]
+  ^long [^BMeshEditor editor ^long l]
   (let [v (long (step/loop-vert editor l))
         s (long (step/loop-prev editor l))
         r (long (step/loop-radial-prev editor s))]
@@ -131,13 +131,13 @@
 ;; 通用——O(径向链长)
 ;; ═══════════════════════════════════════════════
 
-(defn next-loop-around-vert ^long
+(defn next-loop-around-vert
   "绕 l.vert 的下一条 loop——通用。
 
    沿径向链走一圈找绕 v 的——未找到则面内 fallback。
 
    非流形正确——复杂度 O(径向链长)。"
-  [^BMeshEditor editor ^long l]
+  ^long [^BMeshEditor editor ^long l]
   (let [v  (long (step/loop-vert editor l))
         r0 (long (step/loop-radial-next editor l))]
     (loop [r r0]
@@ -152,13 +152,13 @@
         (== (long (step/loop-vert editor r)) v)  r
         :else  (recur (step/loop-radial-next editor r))))))
 
-(defn prev-loop-around-vert ^long
+(defn prev-loop-around-vert
   "绕 l.vert 的上一条 loop——通用。
 
    先面内 .prev——再沿径向链走一圈找绕 v 的。
 
    非流形正确——复杂度 O(径向链长)。"
-  [^BMeshEditor editor ^long l]
+  ^long [^BMeshEditor editor ^long l]
   (let [v  (long (step/loop-vert editor l))
         s  (long (step/loop-prev editor l))
         r0 (long (step/loop-radial-prev editor s))]
