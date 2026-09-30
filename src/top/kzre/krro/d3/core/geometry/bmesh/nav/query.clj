@@ -59,6 +59,28 @@
         (if (== nl -1) -1 (step/loop-edge editor nl))))))
 
 ;; ═══════════════════════════════════════════════
+;; 度量——无扇假设
+;; ═══════════════════════════════════════════════
+
+(defn face-degree
+  "面 f 的环长。"
+  ^long [^BMeshEditor editor ^long f]
+  (step/face-len editor f))
+
+(defn edge-radial-count
+  "边 e 的径向链长度——0 / 1 / 2 / N。"
+  ^long [^BMeshEditor editor ^long e]
+  (let [start (long (step/edge-loop editor e))]
+    (if (== start -1)
+      0
+      (loop [cur start
+             n   1]
+        (let [nxt (long (step/loop-radial-next editor cur))]
+          (if (or (== nxt -1) (== nxt start))
+            n
+            (recur nxt (inc n))))))))
+
+;; ═══════════════════════════════════════════════
 ;; 谓词——无扇假设
 ;; ═══════════════════════════════════════════════
 
@@ -87,27 +109,6 @@
   [^BMeshEditor editor ^long e]
   (== 2 (edge-radial-count editor e)))
 
-;; ═══════════════════════════════════════════════
-;; 度量——无扇假设
-;; ═══════════════════════════════════════════════
-
-(defn face-degree
-  "面 f 的环长。"
-  ^long [^BMeshEditor editor ^long f]
-  (step/face-len editor f))
-
-(defn edge-radial-count
-  "边 e 的径向链长度——0 / 1 / 2 / N。"
-  ^long [^BMeshEditor editor ^long e]
-  (let [start (long (step/edge-loop editor e))]
-    (if (== start -1)
-      0
-      (loop [cur start
-             n   1]
-        (let [nxt (long (step/loop-radial-next editor cur))]
-          (if (or (== nxt -1) (== nxt start))
-            n
-            (recur nxt (inc n))))))))
 
 ;; ═══════════════════════════════════════════════
 ;; 度量——扇内
