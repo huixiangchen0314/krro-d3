@@ -7,8 +7,8 @@
    ── 六个遍历 ──
      loop-around-face      f → 该面所有 loop（面内链）
      loop-around-edge      e → 该边所有 loop（径向链）
-     loop-around-vertex    v → 该顶点所有出 loop（绕顶点）
-     edge-around-vertex    v → 该顶点所有出边
+     loop-around-vertex    v → 从 v 出发的所有 loop（出 loop）
+     edge-around-vertex    v → 绕 v 的所有拓扑边（含入边）
      face-around-edge      e → 该边所有邻面
      vert-around-face      f → 该面所有顶点
 
@@ -20,9 +20,11 @@
    调用方复用 buf——稳态零分配。
 
    ── 流形 / 通用 ──
-     loop-around-vertex / edge-around-vertex 有两套：
-       -manifold —— 用流形旋转——O(1) 每步
-       无后缀    —— 用通用旋转——O(径向链长) 每步
+     loop-around-vertex 有两套：
+       -manifold —— 用流形 loop 旋转——O(1) 每步
+       无后缀    —— 用通用 loop 旋转——O(径向链长) 每步
+
+     edge-around-vertex 只有一套——edge 旋转公式唯一。
 
    全部只读——不修改。"
   (:require
@@ -71,7 +73,7 @@
   (loop-around-edge-into editor e (IntList.)))
 
 ;; ═══════════════════════════════════════════════
-;; loop-around-vertex —— 通用
+;; loop-around-vertex —— 通用（出 loop 集合）
 ;; ═══════════════════════════════════════════════
 
 (defn loop-around-vertex-into ^ints [^BMeshEditor editor ^long v ^IntList buf]
@@ -89,7 +91,7 @@
   (loop-around-vertex-into editor v (IntList.)))
 
 ;; ═══════════════════════════════════════════════
-;; loop-around-vertex —— 流形
+;; loop-around-vertex —— 流形（出 loop 集合）
 ;; ═══════════════════════════════════════════════
 
 (defn loop-around-vertex-manifold-into ^ints [^BMeshEditor editor ^long v ^IntList buf]
@@ -107,40 +109,22 @@
   (loop-around-vertex-manifold-into editor v (IntList.)))
 
 ;; ═══════════════════════════════════════════════
-;; edge-around-vertex —— 通用
+;; edge-around-vertex —— 唯一版本（拓扑邻边）
 ;; ═══════════════════════════════════════════════
 
 (defn edge-around-vertex-into ^ints [^BMeshEditor editor ^long v ^IntList buf]
   (.clear buf)
-  (let [start (long (rotate/first-loop-from-vert editor v))]
+  (let [start (long (step/vert-out-edge editor v))]
     (when (not= start -1)
-      (loop [cur start]
-        (.add buf (int (step/loop-edge editor cur)))
-        (let [nxt (long (rotate/next-loop-around-vert editor cur))]
+      (loop [e start]
+        (.add buf (int e))
+        (let [nxt (long (rotate/next-edge-around-vert editor v e))]
           (when (and (not= nxt -1) (not= nxt start))
             (recur nxt))))))
   (.toArray buf))
 
 (defn edge-around-vertex ^ints [^BMeshEditor editor ^long v]
   (edge-around-vertex-into editor v (IntList.)))
-
-;; ═══════════════════════════════════════════════
-;; edge-around-vertex —— 流形
-;; ═══════════════════════════════════════════════
-
-(defn edge-around-vertex-manifold-into ^ints [^BMeshEditor editor ^long v ^IntList buf]
-  (.clear buf)
-  (let [start (long (rotate/first-loop-from-vert editor v))]
-    (when (not= start -1)
-      (loop [cur start]
-        (.add buf (int (step/loop-edge editor cur)))
-        (let [nxt (long (rotate/next-loop-around-vert-manifold editor cur))]
-          (when (and (not= nxt -1) (not= nxt start))
-            (recur nxt))))))
-  (.toArray buf))
-
-(defn edge-around-vertex-manifold ^ints [^BMeshEditor editor ^long v]
-  (edge-around-vertex-manifold-into editor v (IntList.)))
 
 ;; ═══════════════════════════════════════════════
 ;; face-around-edge

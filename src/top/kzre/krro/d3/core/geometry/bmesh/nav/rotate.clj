@@ -8,19 +8,22 @@
      带 -manifold 后缀 —— 流形专用 —— 假设边流形 —— O(1)。
      无后缀          —— 通用     —— 无假设   —— O(径向链长)。
 
-   两套并存——不是为了性能取舍——是体现从特殊到一般的拓展：
-
-     流形版公式简洁——读一遍即懂'绕顶点旋转'的几何本质。
-     通用版在其上处理非流形——读代码时能看清通用版多做了什么。
-     调用方按数据特征直接选——不需要运行时判断。
+   只有 loop 旋转是真有两种公式——O(1) 流形快路径 / O(N) 通用。
+   edge 旋转只是 loop 旋转的上层封装——公式唯一——不提供 -manifold 版。
 
    ══════════════════════════════════════════════════════════════
-   流形假设（-manifold 版）
+   入口的隐含约束
    ══════════════════════════════════════════════════════════════
 
-     每条边的径向链长度 == 2 —— 即边恰好被两个面共享（或 1 个面 + 边界）。
+   v.out-edge 指向的边——其上的 loop 不一定从 v 出发——
+   面环方向可能让该边在 v 侧充当「入边」(w -> v)。
 
-   非流形（径向链长度 > 2 / 多扇顶点）——行为未定义。
+   loop-from-vert-on-edge 处理这一点：
+     优先 —— e 上有从 v 出发的 loop —— 直接用。
+     否则 —— e 上有从 w 出发的 loop lw —— lw.next 在面内前进 ——
+             .vert == v —— 即绕 v 的合法出 loop。
+
+   first-loop-from-vert 基于此 —— 保证从 v 出发。
 
    ══════════════════════════════════════════════════════════════
    流形版公式推导
@@ -57,6 +60,20 @@
    边界（-1）——沿径向链绕回自身 / 旋转结果不从 v 出发。
 
    ══════════════════════════════════════════════════════════════
+   边旋转
+   ══════════════════════════════════════════════════════════════
+
+   next-edge-around-vert —— 绕 v 从边 e 出发的下一条边。
+
+   情况 1 —— e 上有从 v 出发的 loop —— 用 loop 旋转。
+   情况 2 —— e 上只有从 w 出发的 loop lw —— lw.next 从 v 出发 ——
+             其 .edge 即答案。
+
+   公式唯一——不提供 -manifold 版——内部用通用 loop 旋转。
+   需要流形快路径——调用方自行组合
+   loop-at-edge-vert + next-loop-around-vert-manifold。
+
+   ══════════════════════════════════════════════════════════════
    全部只读——返回索引 / -1——不修改。
    ══════════════════════════════════════════════════════════════"
   (:require
@@ -89,17 +106,43 @@
               -1
               (recur rn))))))))
 
+(defn loop-from-vert-on-edge
+  "在边 e 上——找一条从 v 出发的 loop（e 可能只是入口）。
+
+   策略：
+     1. e 上有从 v 出发的 loop —— 直接返回。
+     2. e 上只有从 w 出发的 loop lw —— 取 lw.next（面内前进）——
+        其 .vert 应为 v —— 返回它。
+     3. 其他 —— 返回 -1。
+
+   保证：只要 e 被 v 的某个面共享，就返回一条绕 v 的 loop。
+   若 e 孤立（无 loop），返回 -1。"
+  ^long [^BMeshEditor editor ^long e ^long v]
+  (let [l (long (loop-at-edge-vert editor e v))]
+    (if (not= l -1)
+      l
+      (let [w  (long (step/edge-other-vert editor e v))
+            lw (long (loop-at-edge-vert editor e w))]
+        (if (== lw -1)
+          -1
+          (let [nxt (long (step/loop-next editor lw))]
+            (if (== (long (step/loop-vert editor nxt)) v)
+              nxt
+              -1)))))))
+
 (defn first-loop-from-vert
   "从顶点 v 出发——找一条绕 v 的 loop。
-   孤立顶点——返回 -1。"
+   孤立顶点——返回 -1。
+
+   从 v.out-edge 出发——loop-from-vert-on-edge 兜住方向不匹配。"
   ^long [^BMeshEditor editor ^long v]
   (let [e (long (step/vert-out-edge editor v))]
     (if (== e -1)
       -1
-      (loop-at-edge-vert editor e v))))
+      (loop-from-vert-on-edge editor e v))))
 
 ;; ═══════════════════════════════════════════════
-;; 流形专用——O(1)
+;; loop 旋转——流形专用——O(1)
 ;; ═══════════════════════════════════════════════
 
 (defn next-loop-around-vert-manifold
@@ -137,7 +180,7 @@
       :else  -1)))
 
 ;; ═══════════════════════════════════════════════
-;; 通用——O(径向链长)
+;; loop 旋转——通用——O(径向链长)
 ;; ═══════════════════════════════════════════════
 
 (defn next-loop-around-vert
@@ -154,23 +197,18 @@
       (loop [r r0]
         (cond
           (== r l)  -1
-          ;; 对面同向——直接
           (== (long (step/loop-vert editor r)) v)  r
-          ;; 对面反向——r.next 修正
           :else
           (let [n (long (step/loop-next editor r))]
             (if (== (long (step/loop-vert editor n)) v)
               n
-              ;; 修正失败——继续径向链
               (let [rn (long (step/loop-radial-next editor r))]
                 (if (or (== rn -1) (== rn r0)) -1 (recur rn))))))))))
 
 (defn prev-loop-around-vert
   "绕 l.vert 的上一条 loop——通用。
 
-   先面内 .prev——再沿径向链走一圈找绕 v 的。
-
-   非流形正确——复杂度 O(径向链长)。"
+   先面内 .prev——再沿径向链走一圈找绕 v 的。"
   ^long [^BMeshEditor editor ^long l]
   (let [v  (long (step/loop-vert editor l))
         s  (long (step/loop-prev editor l))
@@ -181,5 +219,35 @@
         (== r s)   -1
         (== (long (step/loop-vert editor r)) v)  r
         :else  (recur (step/loop-radial-prev editor r))))))
+
+;; ═══════════════════════════════════════════════
+;; 边旋转——唯一版本（公式唯一）
+;; ═══════════════════════════════════════════════
+
+(defn next-edge-around-vert
+  "绕 v 从边 e 出发的下一条边。
+
+   情况 1 —— e 上有从 v 出发的 loop l —— 用 loop 旋转。
+   情况 2 —— e 上只有从 w 出发的 loop lw —— lw.next 从 v 出发 ——
+             其 .edge 即 e 的下一条边。
+
+   无 —— 返回 -1。
+
+   内部用通用 loop 旋转——不假设流形。
+   需要流形快路径的调用方——自行组合
+   loop-at-edge-vert + next-loop-around-vert-manifold。"
+  ^long [^BMeshEditor editor ^long v ^long e]
+  (let [l (long (loop-at-edge-vert editor e v))]
+    (if (not= l -1)
+      (let [nl (long (next-loop-around-vert editor l))]
+        (if (== nl -1) -1 (step/loop-edge editor nl)))
+      (let [w  (long (step/edge-other-vert editor e v))
+            lw (long (loop-at-edge-vert editor e w))]
+        (if (== lw -1)
+          -1
+          (let [nxt (long (step/loop-next editor lw))]
+            (if (== (long (step/loop-vert editor nxt)) v)
+              (long (step/loop-edge editor nxt))
+              -1)))))))
 
 (set! *unchecked-math* nil)
