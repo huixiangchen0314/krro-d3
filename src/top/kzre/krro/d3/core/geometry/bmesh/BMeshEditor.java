@@ -121,7 +121,8 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
         int segId = alloc.segmentOf(index);
 
         ensureIntSegment(bm.edgeEndpoints(), segId, edgeSegmentSize(), 2);
-        ensureIntSegment(bm.edgeLoops(), segId, edgeSegmentSize(), 1);
+        ensureIntSegment(bm.edgeLoops(),     segId, edgeSegmentSize(), 1);
+        ensureIntSegment(bm.edgeDiskRing(),  segId, edgeSegmentSize(), 4); // 边磁盘环
 
         return index;
     }
@@ -178,7 +179,8 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
 
         if (!alloc.isSegmentActive(segId)) {
             releaseIntSegment(bm.edgeEndpoints(), segId);
-            releaseIntSegment(bm.edgeLoops(), segId);
+            releaseIntSegment(bm.edgeLoops(),     segId);
+            releaseIntSegment(bm.edgeDiskRing(),  segId);
         }
     }
 

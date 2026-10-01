@@ -147,6 +147,10 @@
 (defmacro edge-loop-readonly  [mesh idx] `(mesh-seg-readonly  ~mesh edgeLoops ~idx))
 (defmacro edge-loop-for-write [mesh idx] `(mesh-seg-for-write ~mesh edgeLoops ~idx))
 
+(defmacro edge-disk-ring-readonly  [mesh idx] `(mesh-seg-readonly  ~mesh edgeDiskRing ~idx))
+(defmacro edge-disk-ring-for-write [mesh idx] `(mesh-seg-for-write ~mesh edgeDiskRing ~idx))
+
+
 ;; ═══ 环 ═══
 
 (defmacro loop-uv-readonly  [mesh idx] `(mesh-seg-readonly  ~mesh loopUvs ~idx))

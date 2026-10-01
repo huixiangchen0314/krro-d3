@@ -11,7 +11,7 @@
 
    值类型：
      Position / Normal / UV / EdgeEndpoints /
-     LoopOwnership / LoopRing / LoopRadialRing / FaceTopology"
+     LoopOwnership / LoopRing / LoopRadialRing / FaceTopology / EdgeDiskRing"
   (:require
     [top.kzre.krro.d3.core.geometry.bmesh.seg   :as seg]
     [top.kzre.krro.d3.core.geometry.bmesh.vert  :as vert]
@@ -117,6 +117,106 @@
         mesh      (.getBMesh editor)
         seg       (seg/edge-loop-readonly mesh seg-id)]
     (long (seg/readi seg edge/loop-idx local-idx))))
+
+;; ═══════════════════════════════════════════════
+;; 边——磁盘环（值类型）
+;; ═══════════════════════════════════════════════
+
+(defn set-edge-disk-ring!
+  [^BMeshEditor editor ^long e ^EdgeDiskRing r]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-for-write mesh seg-id)]
+    (seg/writei seg edge/set-v0-ring-next! local-idx (.v0Next r))
+    (seg/writei seg edge/set-v0-ring-prev! local-idx (.v0Prev r))
+    (seg/writei seg edge/set-v1-ring-next! local-idx (.v1Next r))
+    (seg/writei seg edge/set-v1-ring-prev! local-idx (.v1Prev r))))
+
+(defn get-edge-disk-ring
+  ^EdgeDiskRing [^BMeshEditor editor ^long e]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-readonly mesh seg-id)]
+    (EdgeDiskRing. (int (seg/readi seg edge/v0-ring-next local-idx))
+                   (int (seg/readi seg edge/v0-ring-prev local-idx))
+                   (int (seg/readi seg edge/v1-ring-next local-idx))
+                   (int (seg/readi seg edge/v1-ring-prev local-idx)))))
+
+;; ═══════════════════════════════════════════════
+;; 边——磁盘环（单字段）
+;; ═══════════════════════════════════════════════
+
+(defn get-edge-v0-ring-next ^long [^BMeshEditor editor ^long e]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-readonly mesh seg-id)]
+    (long (seg/readi seg edge/v0-ring-next local-idx))))
+
+(defn get-edge-v0-ring-prev ^long [^BMeshEditor editor ^long e]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-readonly mesh seg-id)]
+    (long (seg/readi seg edge/v0-ring-prev local-idx))))
+
+(defn get-edge-v1-ring-next ^long [^BMeshEditor editor ^long e]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-readonly mesh seg-id)]
+    (long (seg/readi seg edge/v1-ring-next local-idx))))
+
+(defn get-edge-v1-ring-prev ^long [^BMeshEditor editor ^long e]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-readonly mesh seg-id)]
+    (long (seg/readi seg edge/v1-ring-prev local-idx))))
+
+(defn set-edge-v0-ring-next!
+  [^BMeshEditor editor ^long e ^long v]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-for-write mesh seg-id)]
+    (seg/writei seg edge/set-v0-ring-next! local-idx v)))
+
+(defn set-edge-v0-ring-prev!
+  [^BMeshEditor editor ^long e ^long v]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-for-write mesh seg-id)]
+    (seg/writei seg edge/set-v0-ring-prev! local-idx v)))
+
+(defn set-edge-v1-ring-next!
+  [^BMeshEditor editor ^long e ^long v]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-for-write mesh seg-id)]
+    (seg/writei seg edge/set-v1-ring-next! local-idx v)))
+
+(defn set-edge-v1-ring-prev!
+  [^BMeshEditor editor ^long e ^long v]
+  (let [seg-size  (long (.edgeSegmentSize editor))
+        seg-id    (long (quot e seg-size))
+        local-idx (long (rem e seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/edge-disk-ring-for-write mesh seg-id)]
+    (seg/writei seg edge/set-v1-ring-prev! local-idx v)))
 
 ;; ═══════════════════════════════════════════════
 ;; 环——UV

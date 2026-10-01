@@ -115,6 +115,15 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     /** 边径向环入口——int——孤立边 = -1。 */
     private final CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeLoops;
 
+    /**
+     * 边磁盘环——int4（v0-next, v0-prev, v1-next, v1-prev）——stride = 4。
+     *
+     * <p>每条边在它的两个端点周围各参与一个双向环。
+     * 单条边成环时——next = prev = 边自身。
+     * 孤立边——四个字段都是 -1。
+     */
+    private final CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing;
+
     // ═══════════════════════════════════════════════
     // 环
     // ═══════════════════════════════════════════════
@@ -198,7 +207,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   vertOutEdges,
 
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeEndpoints,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeLoops,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeLoops, CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing,
 
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> loopUvs,
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopOwnership,
@@ -219,6 +228,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
 
         this.edgeEndpoints = edgeEndpoints;
         this.edgeLoops     = edgeLoops;
+        this.edgeDiskRing = edgeDiskRing;
 
         this.loopUvs        = loopUvs;
         this.loopOwnership  = loopOwnership;
@@ -250,6 +260,8 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     public CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeEndpoints() { return edgeEndpoints; }
 
     public CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeLoops()     { return edgeLoops; }
+    /** 边磁盘环——int4（v0-next, v0-prev, v1-next, v1-prev）——stride = 4。 */
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing() { return edgeDiskRing; }
 
     // ═══════════════════════════════════════════════
     // 访问器——环
@@ -304,7 +316,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     public static BMesh create(int segmentSize) {
         return new BMesh(
                 emptyList(), emptyList(),               // vert
-                emptyList(), emptyList(),               // edge
+                emptyList(), emptyList(), emptyList(),  // edge（加一）
                 emptyList(), emptyList(),               // loop: uv / ownership
                 emptyList(), emptyList(),               // loop: ring / radial
                 emptyList(), emptyList(), emptyList(),  // face
@@ -326,16 +338,16 @@ public final class BMesh implements CopyOnWrite<BMesh> {
             int faceSegmentSize) {
         return new BMesh(
                 emptyList(), emptyList(),
-                emptyList(), emptyList(),
-                emptyList(), emptyList(),
+                emptyList(), emptyList(), emptyList(),
+                emptyList(),
                 emptyList(), emptyList(),
                 emptyList(), emptyList(), emptyList(),
 
+                emptyList(),
                 newAllocator(vertSegmentSize),
                 newAllocator(edgeSegmentSize),
                 newAllocator(loopSegmentSize),
-                newAllocator(faceSegmentSize)
-        );
+                newAllocator(faceSegmentSize));
     }
 
     // ═══════════════════════════════════════════════
@@ -350,21 +362,21 @@ public final class BMesh implements CopyOnWrite<BMesh> {
 
                 edgeEndpoints.shared(),
                 edgeLoops.shared(),
+                edgeDiskRing.shared(),
 
                 loopUvs.shared(),
                 loopOwnership.shared(),
                 loopRing.shared(),
-                loopRadialRing.shared(),
 
+                loopRadialRing.shared(),
                 faceNormals.shared(),
                 faceSubmeshIds.shared(),
-                faceTopology.shared(),
 
+                faceTopology.shared(),
                 vertAllocator.shared(),
                 edgeAllocator.shared(),
                 loopAllocator.shared(),
-                faceAllocator.shared()
-        );
+                faceAllocator.shared());
     }
 
     @Override
@@ -376,6 +388,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
 
         first = tryClose(edgeEndpoints, first);
         first = tryClose(edgeLoops,     first);
+        first = tryClose(edgeDiskRing,  first);
 
         first = tryClose(loopUvs,        first);
         first = tryClose(loopOwnership,  first);

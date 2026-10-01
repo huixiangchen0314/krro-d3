@@ -1,7 +1,5 @@
 package top.kzre.krro.d3.core.util;
 
-import top.kzre.krro.d3.core.util.IntList;
-
 /**
  * int 队列——FIFO。
  *
