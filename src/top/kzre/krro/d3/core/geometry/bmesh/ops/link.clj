@@ -12,6 +12,7 @@
    ── 单向连接（语义封装——值类型参数）──
      set-vert-out-edge!     顶点出边
      set-edge-loop!         边径向入口
+     set-edge-disk-ring!    边磁盘环——值类型
      set-loop-ownership!    环归属——值类型
      set-edge-endpoints!    边端点——值类型
      set-face-topology!     面拓扑——值类型
@@ -20,13 +21,16 @@
      全部只碰 access 的写——不检查邻接——不做遍历。
      双向链——两字段同时设置——中间状态不可见。
      调用方保证索引有效。
-     -1 作为哨兵——unlink 遇 -1 无操作。"
+     -1 作为哨兵——unlink 遇 -1 无操作。
+
+   磁盘环的插入 / 摘除逻辑复杂（自环 / 两条 / 多条三情形），
+   归 add.clj / remove.clj——本层只提供整组值类型写。"
   (:require
     [top.kzre.krro.d3.core.geometry.bmesh.access :as access])
   (:import
     (top.kzre.krro.d3.core.geometry.bmesh BMeshEditor)
     (top.kzre.krro.d3.core.geometry.bmesh
-      EdgeEndpoints LoopOwnership FaceTopology)))
+      EdgeEndpoints EdgeDiskRing LoopOwnership FaceTopology)))
 
 (set! *unchecked-math* true)
 
@@ -83,6 +87,11 @@
   "设置边 e 的径向环入口 l。"
   [^BMeshEditor editor ^long e ^long l]
   (access/set-edge-loop! editor e l))
+
+(defn set-edge-disk-ring!
+  "设置边 e 的磁盘环。"
+  [^BMeshEditor editor ^long e ^EdgeDiskRing r]
+  (access/set-edge-disk-ring! editor e r))
 
 (defn set-loop-ownership!
   "设置环 l 的归属。"

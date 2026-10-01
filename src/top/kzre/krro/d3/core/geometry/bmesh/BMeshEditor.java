@@ -122,7 +122,7 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
 
         ensureIntSegment(bm.edgeEndpoints(), segId, edgeSegmentSize(), 2);
         ensureIntSegment(bm.edgeLoops(),     segId, edgeSegmentSize(), 1);
-        ensureIntSegment(bm.edgeDiskRing(),  segId, edgeSegmentSize(), 4); // 边磁盘环
+        ensureIntSegment(bm.edgeDiskRing(),  segId, edgeSegmentSize(), 4);
 
         return index;
     }
@@ -154,9 +154,9 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
         return index;
     }
 
-// ═══════════════════════════════════════════════
-// 释放索引——含段释放
-// ═══════════════════════════════════════════════
+    // ═══════════════════════════════════════════════
+    // 释放索引——含段释放
+    // ═══════════════════════════════════════════════
 
     public void freeVert(int v) {
         SegmentizedIndexAllocator alloc =
@@ -164,7 +164,6 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
         int segId = alloc.segmentOf(v);
         alloc.free(v);
 
-        // 段空 → 释放该段的全部属性段
         if (!alloc.isSegmentActive(segId)) {
             releaseFloatSegment(bm.vertPositions(), segId);
             releaseIntSegment(bm.vertOutEdges(), segId);
@@ -210,6 +209,7 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
             releaseIntSegment(bm.faceTopology(), segId);
         }
     }
+
     // ═══════════════════════════════════════════════
     // 活跃计数
     // ═══════════════════════════════════════════════
@@ -232,7 +232,6 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
     public void close() {
         bm.close();
     }
-
 
     // ═══════════════════════════════════════════════
     // 内部——段确保
@@ -278,15 +277,9 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
     }
 
     // ═══════════════════════════════════════════════
-// 段释放——辅助
-// ═══════════════════════════════════════════════
+    // 段释放——辅助
+    // ═══════════════════════════════════════════════
 
-    /**
-     * 释放 float 段——段槽置 null——触发 CopyOnWriteFloats.close。
-     *
-     * <p>释放后——段列表该槽为 null——下次 allocVert 时——
-     * ensureFloatSegment 检测 null——重新分配。
-     */
     private static void releaseFloatSegment(
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> attr,
             int segId) {
@@ -297,7 +290,6 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
         CopyOnWriteFloats seg = list.get(segId);
         if (seg == null) return;
 
-        // close——refCount 归零——底层 Arena 段归还
         seg.close();
         list.set(segId, null);
     }

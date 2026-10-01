@@ -16,7 +16,7 @@ import top.kzre.krro.d3.core.util.cow.ListResource;
  * <p><b>四元素结构</b>：
  * <ul>
  *   <li><b>顶点（Vert）</b>——位置 + 一条出边</li>
- *   <li><b>边（Edge）</b>——两端点 + 径向环入口</li>
+ *   <li><b>边（Edge）</b>——两端点 + 径向环入口 + 磁盘环</li>
  *   <li><b>环（Loop）</b>——角点——归属 + 面内链 + 径向链 + UV</li>
  *   <li><b>面（Face）</b>——环入口 + 环长 + 法线 + 子网格归属</li>
  * </ul>
@@ -30,6 +30,7 @@ import top.kzre.krro.d3.core.util.cow.ListResource;
  *
  *   edgeEndpoints      int2     v0, v1
  *   edgeLoops          int      radial loop 入口
+ *   edgeDiskRing       int4     v0-next, v0-prev, v1-next, v1-prev
  *
  *   loopUvs            float2   u, v
  *   loopOwnership      int3     vert, edge, face
@@ -46,6 +47,7 @@ import top.kzre.krro.d3.core.util.cow.ListResource;
  * edge:
  *     endpoints[e]    → (v0, v1)
  *     loops[e]        → 径向环入口
+ *     diskRing[e]     → v0 环 (next, prev) + v1 环 (next, prev)
  *
  * loop:
  *     ownership[l]    → (vert, edge, face)
@@ -56,6 +58,9 @@ import top.kzre.krro.d3.core.util.cow.ListResource;
  *     topology[f]     → (loop, len)
  * </pre>
  *
+ * <p><b>磁盘环</b>：每条边在它的两个端点周围各参与一个双向出边环——
+ * 单元素时 next == prev == 自身——孤立边时全 -1。
+ * 与 Blender 的 edge-disk-link 一致——绕顶点遍历不依赖 loop 方向。
  *
  * <p><b>顶点法线不在 BMesh</b>：顶点法线仅在全平滑时有意义——
  * 本质是面角法线的一个特例——由烘焙期从面法线算出——不在
@@ -116,10 +121,10 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     private final CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeLoops;
 
     /**
-     * 边磁盘环——int4（v0-next, v0-prev, v1-next, v1-prev）——stride = 4。
+     * 边磁盘环——int4（v0Next, v0Prev, v1Next, v1Prev）——stride = 4。
      *
-     * <p>每条边在它的两个端点周围各参与一个双向环。
-     * 单条边成环时——next = prev = 边自身。
+     * <p>每条边在它的两个端点周围各参与一个双向出边环。
+     * 单元素环——next == prev == 边自身。
      * 孤立边——四个字段都是 -1。
      */
     private final CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing;
@@ -189,25 +194,13 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     // 全参构造器
     // ═══════════════════════════════════════════════
 
-    /**
-     * 全参构造器——private。
-     *
-     * <p><b>外部不直接构造</b>：符合 Clojure 持久化数据结构的惯例——
-     * 通过工厂方法创建——保证内部一致性。
-     *
-     * <p>调用方：
-     * <ul>
-     *   <li>{@link #create(int)} —— 常用——统一段大小</li>
-     *   <li>{@link #create(int, int, int, int)} —— 各元素不同段大小</li>
-     *   <li>{@link #shared()} —— 共享副本</li>
-     * </ul>
-     */
-    private  BMesh(
+    private BMesh(
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> vertPositions,
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   vertOutEdges,
 
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeEndpoints,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeLoops, CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeLoops,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeDiskRing,
 
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> loopUvs,
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopOwnership,
@@ -228,7 +221,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
 
         this.edgeEndpoints = edgeEndpoints;
         this.edgeLoops     = edgeLoops;
-        this.edgeDiskRing = edgeDiskRing;
+        this.edgeDiskRing  = edgeDiskRing;
 
         this.loopUvs        = loopUvs;
         this.loopOwnership  = loopOwnership;
@@ -260,8 +253,9 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     public CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeEndpoints() { return edgeEndpoints; }
 
     public CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeLoops()     { return edgeLoops; }
-    /** 边磁盘环——int4（v0-next, v0-prev, v1-next, v1-prev）——stride = 4。 */
-    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing() { return edgeDiskRing; }
+
+    /** 边磁盘环——int4（v0Next, v0Prev, v1Next, v1Prev）——stride = 4。 */
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing()  { return edgeDiskRing; }
 
     // ═══════════════════════════════════════════════
     // 访问器——环
@@ -316,7 +310,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     public static BMesh create(int segmentSize) {
         return new BMesh(
                 emptyList(), emptyList(),               // vert
-                emptyList(), emptyList(), emptyList(),  // edge（加一）
+                emptyList(), emptyList(), emptyList(),  // edge: endpoints / loops / diskRing
                 emptyList(), emptyList(),               // loop: uv / ownership
                 emptyList(), emptyList(),               // loop: ring / radial
                 emptyList(), emptyList(), emptyList(),  // face
@@ -339,15 +333,15 @@ public final class BMesh implements CopyOnWrite<BMesh> {
         return new BMesh(
                 emptyList(), emptyList(),
                 emptyList(), emptyList(), emptyList(),
-                emptyList(),
+                emptyList(), emptyList(),
                 emptyList(), emptyList(),
                 emptyList(), emptyList(), emptyList(),
 
-                emptyList(),
                 newAllocator(vertSegmentSize),
                 newAllocator(edgeSegmentSize),
                 newAllocator(loopSegmentSize),
-                newAllocator(faceSegmentSize));
+                newAllocator(faceSegmentSize)
+        );
     }
 
     // ═══════════════════════════════════════════════
@@ -367,16 +361,17 @@ public final class BMesh implements CopyOnWrite<BMesh> {
                 loopUvs.shared(),
                 loopOwnership.shared(),
                 loopRing.shared(),
-
                 loopRadialRing.shared(),
+
                 faceNormals.shared(),
                 faceSubmeshIds.shared(),
-
                 faceTopology.shared(),
+
                 vertAllocator.shared(),
                 edgeAllocator.shared(),
                 loopAllocator.shared(),
-                faceAllocator.shared());
+                faceAllocator.shared()
+        );
     }
 
     @Override

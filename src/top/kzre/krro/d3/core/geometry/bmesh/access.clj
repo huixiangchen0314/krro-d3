@@ -22,7 +22,7 @@
     (top.kzre.krro.d3.core.geometry Position Normal UV)
     (top.kzre.krro.d3.core.geometry.bmesh
       BMesh BMeshEditor
-      EdgeEndpoints LoopOwnership LoopRing LoopRadialRing FaceTopology)))
+      EdgeEndpoints LoopOwnership LoopRing LoopRadialRing FaceTopology EdgeDiskRing)))
 
 (set! *unchecked-math* true)
 

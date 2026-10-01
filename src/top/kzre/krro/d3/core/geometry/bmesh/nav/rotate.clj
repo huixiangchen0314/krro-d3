@@ -9,7 +9,8 @@
      无后缀          —— 通用     —— 无假设   —— O(径向链长)。
 
    只有 loop 旋转是真有两种公式——O(1) 流形快路径 / O(N) 通用。
-   edge 旋转只是 loop 旋转的上层封装——公式唯一——不提供 -manifold 版。
+
+   绕顶点的「边」遍历不在此——归磁盘环（walk/edge-around-vertex）。
 
    ══════════════════════════════════════════════════════════════
    入口的隐含约束
@@ -58,20 +59,6 @@
    若无——面内 fallback 跨到相邻边再查。
 
    边界（-1）——沿径向链绕回自身 / 旋转结果不从 v 出发。
-
-   ══════════════════════════════════════════════════════════════
-   边旋转
-   ══════════════════════════════════════════════════════════════
-
-   next-edge-around-vert —— 绕 v 从边 e 出发的下一条边。
-
-   情况 1 —— e 上有从 v 出发的 loop —— 用 loop 旋转。
-   情况 2 —— e 上只有从 w 出发的 loop lw —— lw.next 从 v 出发 ——
-             其 .edge 即答案。
-
-   公式唯一——不提供 -manifold 版——内部用通用 loop 旋转。
-   需要流形快路径——调用方自行组合
-   loop-at-edge-vert + next-loop-around-vert-manifold。
 
    ══════════════════════════════════════════════════════════════
    全部只读——返回索引 / -1——不修改。
@@ -219,35 +206,5 @@
         (== r s)   -1
         (== (long (step/loop-vert editor r)) v)  r
         :else  (recur (step/loop-radial-prev editor r))))))
-
-;; ═══════════════════════════════════════════════
-;; 边旋转——唯一版本（公式唯一）
-;; ═══════════════════════════════════════════════
-
-(defn next-edge-around-vert
-  "绕 v 从边 e 出发的下一条边。
-
-   情况 1 —— e 上有从 v 出发的 loop l —— 用 loop 旋转。
-   情况 2 —— e 上只有从 w 出发的 loop lw —— lw.next 从 v 出发 ——
-             其 .edge 即 e 的下一条边。
-
-   无 —— 返回 -1。
-
-   内部用通用 loop 旋转——不假设流形。
-   需要流形快路径的调用方——自行组合
-   loop-at-edge-vert + next-loop-around-vert-manifold。"
-  ^long [^BMeshEditor editor ^long v ^long e]
-  (let [l (long (loop-at-edge-vert editor e v))]
-    (if (not= l -1)
-      (let [nl (long (next-loop-around-vert editor l))]
-        (if (== nl -1) -1 (step/loop-edge editor nl)))
-      (let [w  (long (step/edge-other-vert editor e v))
-            lw (long (loop-at-edge-vert editor e w))]
-        (if (== lw -1)
-          -1
-          (let [nxt (long (step/loop-next editor lw))]
-            (if (== (long (step/loop-vert editor nxt)) v)
-              (long (step/loop-edge editor nxt))
-              -1)))))))
 
 (set! *unchecked-math* nil)

@@ -1,12 +1,8 @@
 (ns top.kzre.krro.d3.core.geometry.bmesh.nav.query
   "导航——查询。
 
-   基于 step / rotate —— 判断 / 查找 / 度量。
+   基于 step / access —— 判断 / 查找 / 度量。
    全部只读——无副作用。
-
-   ── 命名约定 ──
-     带 -in-fan 后缀 —— 绕顶点遍历——只在当前扇内可达。
-     无后缀          —— 不涉绕顶点遍历——无扇假设。
 
    ── 谓词 ──
      isolated-vert?
@@ -14,25 +10,27 @@
      isolated-face?
      boundary-edge?           径向链 == 1
      manifold-edge?           径向链 == 2
-     boundary-vert-in-fan?    当前扇有边界边
+     boundary-vert?           有边界边
 
    ── 度量 ──
-     vert-degree-in-fan       当前扇拓扑边数
+     vert-degree              绕顶点的拓扑边数（磁盘环）
      face-degree
      edge-radial-count
 
    ── 查找 ──
-     find-edge-in-fan         当前扇查找 v0-v1 边
+     find-edge                绕顶点查找 v0-v1 边
 
-   ── 扇内语义 ──
-   绕顶点遍历依赖旋转——旋转只在当前扇内可达。
-   多扇顶点——vert-degree / boundary-vert? —— 只反映当前扇。
+   ── 绕顶点遍历 ──
+   基于磁盘环——不依赖 loop / 面——无扇假设——
+   边界顶点也返回全部拓扑邻边。
+   O(deg) —— deg 是绕 v 的边数。
 
-   已知数据流形时——准确。
-   非流形——上层若有完整上下文——自行判断。"
+   ── 无扇假设 ──
+   所有函数基于拓扑边或径向链——完整覆盖。
+   流形 / 非流形——均正确。"
   (:require
-    [top.kzre.krro.d3.core.geometry.bmesh.nav.step   :as step]
-    [top.kzre.krro.d3.core.geometry.bmesh.nav.rotate :as rotate])
+    [top.kzre.krro.d3.core.geometry.bmesh.access   :as access]
+    [top.kzre.krro.d3.core.geometry.bmesh.nav.step :as step])
   (:import
     (top.kzre.krro.d3.core.geometry.bmesh BMeshEditor)))
 
@@ -90,35 +88,44 @@
   (== 2 (edge-radial-count editor e)))
 
 ;; ═══════════════════════════════════════════════
-;; 度量——扇内
+;; 度量——绕顶点（磁盘环）
 ;; ═══════════════════════════════════════════════
 
-(defn vert-degree-in-fan
-  "顶点 v 的当前扇拓扑边数。
+(defn- next-edge-around-vert
+  "绕 v 从边 e 出发的下一条边——磁盘环读。
 
-   基于拓扑边旋转——遍历从 v 出发的所有边——
-   包括「入边」(其 loop 从另一端出发)。
+   返回 -1 —— 异常（e 不在 v 的磁盘环上）。"
+  ^long [^BMeshEditor editor ^long v ^long e]
+  (let [ep    (access/get-edge-endpoints editor e)
+        at-v0 (== (long (.v0 ep)) v)]
+    (if at-v0
+      (access/get-edge-v0-ring-next editor e)
+      (access/get-edge-v1-ring-next editor e))))
 
-   多扇顶点——只计当前扇——非全度数。"
+(defn vert-degree
+  "顶点 v 的绕边数（拓扑邻边数）。
+
+   基于磁盘环——遍历 v 周围的全部出边——含「入边」——
+   无扇假设——边界顶点也完整。"
   ^long [^BMeshEditor editor ^long v]
   (let [start (long (step/vert-out-edge editor v))]
     (if (== start -1)
       0
       (loop [e start
              n 1]
-        (let [nxt (long (rotate/next-edge-around-vert editor v e))]
+        (let [nxt (long (next-edge-around-vert editor v e))]
           (if (or (== nxt -1) (== nxt start))
             n
             (recur nxt (inc n))))))))
 
 ;; ═══════════════════════════════════════════════
-;; 谓词——扇内
+;; 谓词——绕顶点（磁盘环）
 ;; ═══════════════════════════════════════════════
 
-(defn boundary-vert-in-fan?
-  "顶点 v 的当前扇有边界边。
+(defn boundary-vert?
+  "顶点 v 有边界边。
 
-   遍历拓扑边——包括「入边」——不漏判。"
+   基于磁盘环——遍历全部拓扑边——不漏判。"
   [^BMeshEditor editor ^long v]
   (let [start (long (step/vert-out-edge editor v))]
     (if (== start -1)
@@ -126,19 +133,19 @@
       (loop [e start]
         (if (boundary-edge? editor e)
           true
-          (let [nxt (long (rotate/next-edge-around-vert editor v e))]
+          (let [nxt (long (next-edge-around-vert editor v e))]
             (if (or (== nxt -1) (== nxt start))
               false
               (recur nxt))))))))
 
 ;; ═══════════════════════════════════════════════
-;; 查找——扇内
+;; 查找——绕顶点（磁盘环）
 ;; ═══════════════════════════════════════════════
 
-(defn find-edge-in-fan
-  "在 v0 的当前扇内查找连接 v0 v1 的边——无返回 -1。
+(defn find-edge
+  "在 v0 周围查找连接 v0 v1 的边——无返回 -1。
 
-   遍历拓扑边——包括「入边」——完整覆盖当前扇。"
+   基于磁盘环——完整覆盖所有拓扑边。"
   ^long [^BMeshEditor editor ^long v0 ^long v1]
   (let [start (long (step/vert-out-edge editor v0))]
     (if (== start -1)
@@ -146,7 +153,7 @@
       (loop [e start]
         (if (== (long (step/edge-other-vert editor e v0)) v1)
           e
-          (let [nxt (long (rotate/next-edge-around-vert editor v0 e))]
+          (let [nxt (long (next-edge-around-vert editor v0 e))]
             (if (or (== nxt -1) (== nxt start))
               -1
               (recur nxt))))))))
