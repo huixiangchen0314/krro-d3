@@ -16,6 +16,8 @@ public final class LoopRing {
         this.next = next;
         this.prev = prev;
     }
+    /** 空环——孤立环默认。 */
+    public static final LoopRing NONE = new LoopRing(-1, -1);
 
     @Override
     public boolean equals(Object o) {

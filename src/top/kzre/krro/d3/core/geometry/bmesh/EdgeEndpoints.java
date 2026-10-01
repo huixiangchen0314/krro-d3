@@ -24,6 +24,8 @@ public final class EdgeEndpoints {
         EdgeEndpoints e = (EdgeEndpoints) o;
         return v0 == e.v0 && v1 == e.v1;
     }
+    /** 空端点——孤立边默认。 */
+    public static final EdgeEndpoints NONE = new EdgeEndpoints(-1, -1);
 
     @Override
     public int hashCode() {

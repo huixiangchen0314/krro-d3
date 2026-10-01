@@ -34,6 +34,9 @@ public final class Position {
         return new Position((float) x, (float) y, (float) z);
     }
 
+    /** 原点 (0, 0, 0)——复用单例——避免频繁构造。 */
+    public static final Position ORIGIN = new Position(0f, 0f, 0f);
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

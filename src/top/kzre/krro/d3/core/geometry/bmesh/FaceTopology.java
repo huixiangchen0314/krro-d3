@@ -16,6 +16,8 @@ public final class FaceTopology {
         this.loop = loop;
         this.len = len;
     }
+    /** 空拓扑——孤立面默认。 */
+    public static final FaceTopology NONE = new FaceTopology(-1, 0);
 
     @Override
     public boolean equals(Object o) {

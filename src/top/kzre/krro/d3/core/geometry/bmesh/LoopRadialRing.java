@@ -16,7 +16,8 @@ public final class LoopRadialRing {
         this.radialNext = radialNext;
         this.radialPrev = radialPrev;
     }
-
+    /** 空径向环——孤立环默认。 */
+    public static final LoopRadialRing NONE = new LoopRadialRing(-1, -1);
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

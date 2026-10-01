@@ -16,7 +16,8 @@ public final class LoopOwnership {
         this.edge = edge;
         this.face = face;
     }
-
+    /** 空归属——孤立环默认。 */
+    public static final LoopOwnership NONE = new LoopOwnership(-1, -1, -1);
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
