@@ -72,13 +72,22 @@
 
 (defn loop-at-edge-vert
   "在边 e 上——找 .vert == v 的 loop。
-   无——返回 -1。"
+   无——返回 -1。
+
+   遍历 e 的径向链——所有在 e 上的 loop——找从 v 出发的那一条。
+   流形假设——径向链长度 ≤ 2——O(1)。"
   ^long [^BMeshEditor editor ^long e ^long v]
-  (let [l (long (step/edge-loop editor e))]
-    (cond
-      (== l -1)  -1
-      (== (long (step/loop-vert editor l)) v)  l
-      :else  (step/loop-next editor l))))
+  (let [start (long (step/edge-loop editor e))]
+    (if (== start -1)
+      -1
+      (loop [l start]
+        (cond
+          (== (long (step/loop-vert editor l)) v)  l
+          :else
+          (let [rn (long (step/loop-radial-next editor l))]
+            (if (or (== rn -1) (== rn start))
+              -1
+              (recur rn))))))))
 
 (defn first-loop-from-vert
   "从顶点 v 出发——找一条绕 v 的 loop。
@@ -134,23 +143,27 @@
 (defn next-loop-around-vert
   "绕 l.vert 的下一条 loop——通用。
 
-   沿径向链走一圈找绕 v 的——未找到则面内 fallback。
-
-   非流形正确——复杂度 O(径向链长)。"
+   对面同向——直接返回；
+   对面反向——用对面 loop 的 .next 修正；
+   修正失败——继续沿径向链。"
   ^long [^BMeshEditor editor ^long l]
   (let [v  (long (step/loop-vert editor l))
         r0 (long (step/loop-radial-next editor l))]
-    (loop [r r0]
-      (cond
-        (== r -1)  -1
-        (== r l)
-        (let [n (long (step/loop-next editor r0))]
-          (cond
-            (== n -1)  -1
-            (== (long (step/loop-vert editor n)) v)  n
-            :else  -1))
-        (== (long (step/loop-vert editor r)) v)  r
-        :else  (recur (step/loop-radial-next editor r))))))
+    (if (== r0 -1)
+      -1
+      (loop [r r0]
+        (cond
+          (== r l)  -1
+          ;; 对面同向——直接
+          (== (long (step/loop-vert editor r)) v)  r
+          ;; 对面反向——r.next 修正
+          :else
+          (let [n (long (step/loop-next editor r))]
+            (if (== (long (step/loop-vert editor n)) v)
+              n
+              ;; 修正失败——继续径向链
+              (let [rn (long (step/loop-radial-next editor r))]
+                (if (or (== rn -1) (== rn r0)) -1 (recur rn))))))))))
 
 (defn prev-loop-around-vert
   "绕 l.vert 的上一条 loop——通用。
