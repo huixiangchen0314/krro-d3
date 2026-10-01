@@ -287,4 +287,72 @@
     (FaceTopology. (int (seg/readi seg face/loop-idx local-idx))
                    (int (seg/readi seg face/loop-len local-idx)))))
 
+(defn set-loop-next!
+  [^BMeshEditor editor ^long l ^long n]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-ring-for-write mesh seg-id)]
+    (seg/writei seg loop/set-next-idx! local-idx n)))
+
+(defn get-loop-next ^long [^BMeshEditor editor ^long l]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-ring-readonly mesh seg-id)]
+    (long (seg/readi seg loop/next-idx local-idx))))
+
+(defn set-loop-prev!
+  [^BMeshEditor editor ^long l ^long p]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-ring-for-write mesh seg-id)]
+    (seg/writei seg loop/set-prev-idx! local-idx p)))
+
+(defn get-loop-prev ^long [^BMeshEditor editor ^long l]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-ring-readonly mesh seg-id)]
+    (long (seg/readi seg loop/prev-idx local-idx))))
+
+(defn set-loop-radial-next!
+  [^BMeshEditor editor ^long l ^long n]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-radial-ring-for-write mesh seg-id)]
+    (seg/writei seg loop/set-radial-next! local-idx n)))
+
+(defn get-loop-radial-next ^long [^BMeshEditor editor ^long l]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-radial-ring-readonly mesh seg-id)]
+    (long (seg/readi seg loop/radial-next-idx local-idx))))
+
+(defn set-loop-radial-prev!
+  [^BMeshEditor editor ^long l ^long p]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-radial-ring-for-write mesh seg-id)]
+    (seg/writei seg loop/set-radial-prev! local-idx p)))
+
+(defn get-loop-radial-prev ^long [^BMeshEditor editor ^long l]
+  (let [seg-size  (long (.loopSegmentSize editor))
+        seg-id    (long (quot l seg-size))
+        local-idx (long (rem l seg-size))
+        mesh      (.getBMesh editor)
+        seg       (seg/loop-radial-ring-readonly mesh seg-id)]
+    (long (seg/readi seg loop/radial-prev-idx local-idx))))
+
 (set! *unchecked-math* nil)
