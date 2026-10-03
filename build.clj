@@ -38,6 +38,7 @@
 (defn jar [_]
       (clean nil)
       (compile-java nil)
+      ;; AOT 因为希望java 用户也能使用这里库的api
       (compile-clj nil)
       (b/write-pom {:class-dir class-dir
                     :lib lib

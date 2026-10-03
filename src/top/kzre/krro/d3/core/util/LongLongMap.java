@@ -3,21 +3,22 @@ package top.kzre.krro.d3.core.util;
 import java.util.Arrays;
 
 /**
- * long → int 原始类型哈希表——开放寻址——线性探测。
+ * long → long 原始类型哈希表——开放寻址——线性探测。
  *
- * <p><b>空槽约定</b>：value = -1 表示空槽。
+ * <p><b>空槽约定</b>：value = {@link Long#MIN_VALUE} 表示空槽。
+ * 因此不能存储 {@code Long.MIN_VALUE} 作为合法值。
  *
  * <p><b>复用</b>：{@link #ensureCapacity(int)} 保留数组容量——
  * 避免大数组反复分配进入老年代。配合 ThreadLocal 使用。
  *
  * <p><b>线程契约</b>：非线程安全。
  */
-public final class LongIntMap {
+public final class LongLongMap {
 
-    private static final int EMPTY_VALUE = -1;
+    private static final long EMPTY_VALUE = Long.MIN_VALUE;
 
     private long[] keys;
-    private int[]  values;
+    private long[] values;
     private int    mask;
     private int    size;
     private int    threshold;
@@ -26,13 +27,14 @@ public final class LongIntMap {
     // 构造
     // ═══════════════════════════════════════════════
 
-    public LongIntMap() { this(16); }
+    public LongLongMap() { this(16); }
 
-    public LongIntMap(int expectedSize) {
+    public LongLongMap(int expectedSize) {
         int cap = 1;
         while (cap < expectedSize * 2) cap <<= 1;   // 负载因子 0.5
         this.keys      = new long[cap];
-        this.values    = new int[cap];
+        this.values    = new long[cap];
+        Arrays.fill(this.values, EMPTY_VALUE);
         this.mask      = cap - 1;
         this.threshold = cap / 2;
         this.size      = 0;
@@ -44,8 +46,6 @@ public final class LongIntMap {
 
     /**
      * 重置为空——保留当前容量。
-     *
-     * <p>比 {@code clear()} 语义更明确——用于"下次使用前重置"。
      */
     public void reset() {
         clear();
@@ -54,9 +54,6 @@ public final class LongIntMap {
     /**
      * 确保容量至少能容纳 {@code expected} 个条目——不足则扩容。
      * 现有内容被清除。
-     *
-     * <p>用于 ThreadLocal 复用场景——容量随最大使用量增长——
-     * 之后不再分配。
      */
     public void ensureCapacity(int expected) {
         int needed = 1;
@@ -64,7 +61,7 @@ public final class LongIntMap {
 
         if (keys.length < needed) {
             this.keys      = new long[needed];
-            this.values    = new int[needed];
+            this.values    = new long[needed];
             this.mask      = needed - 1;
             this.threshold = needed / 2;
         }
@@ -75,13 +72,13 @@ public final class LongIntMap {
     // 查询
     // ═══════════════════════════════════════════════
 
-    public int get(long key) {
+    public long get(long key) {
         int idx = hash(key) & mask;
         while (values[idx] != EMPTY_VALUE) {
             if (keys[idx] == key) return values[idx];
             idx = (idx + 1) & mask;
         }
-        return -1;
+        return EMPTY_VALUE;
     }
 
     public boolean containsKey(long key) {
@@ -97,16 +94,16 @@ public final class LongIntMap {
     // 插入
     // ═══════════════════════════════════════════════
 
-    public int put(long key, int value) {
+    public long put(long key, long value) {
         if (value == EMPTY_VALUE) {
-            throw new IllegalArgumentException("value must not be -1");
+            throw new IllegalArgumentException("value must not be Long.MIN_VALUE");
         }
         if (size >= threshold) grow();
 
         int idx = hash(key) & mask;
         while (values[idx] != EMPTY_VALUE) {
             if (keys[idx] == key) {
-                int old = values[idx];
+                long old = values[idx];
                 values[idx] = value;
                 return old;
             }
@@ -116,7 +113,7 @@ public final class LongIntMap {
         keys[idx]   = key;
         values[idx] = value;
         size++;
-        return -1;
+        return EMPTY_VALUE;
     }
 
     // ═══════════════════════════════════════════════
@@ -139,11 +136,12 @@ public final class LongIntMap {
 
     private void grow() {
         long[] oldKeys   = keys;
-        int[]  oldValues = values;
+        long[] oldValues = values;
 
         int newCap = keys.length << 1;
         keys      = new long[newCap];
-        values    = new int[newCap];
+        values    = new long[newCap];
+        Arrays.fill(values, EMPTY_VALUE);
         mask      = newCap - 1;
         threshold = newCap / 2;
         size      = 0;
@@ -162,11 +160,11 @@ public final class LongIntMap {
     private static int hash(long x) {
         x = (x ^ (x >>> 33)) * 0xff51afd7ed558ccdL;
         x = (x ^ (x >>> 33)) * 0xc4ceb9fe1a85ec53L;
-        x = x ^ (x >>> 33);
+        x = (x ^ (x >>> 33));
         return (int) x;
     }
 
-    private LongIntMap(long[] keys, int[] values, int mask, int threshold, int size) {
+    private LongLongMap(long[] keys, long[] values, int mask, int threshold, int size) {
         this.keys      = keys;
         this.values    = values;
         this.mask      = mask;
@@ -174,12 +172,12 @@ public final class LongIntMap {
         this.size      = size;
     }
 
-    public LongIntMap copy() {
+    public LongLongMap copy() {
         int n = this.keys.length;
         long[] newKeys   = new long[n];
-        int[]  newValues = new int[n];
+        long[] newValues = new long[n];
         System.arraycopy(this.keys,   0, newKeys,   0, n);
         System.arraycopy(this.values, 0, newValues, 0, n);
-        return new LongIntMap(newKeys, newValues, this.mask, this.threshold, this.size);
+        return new LongLongMap(newKeys, newValues, this.mask, this.threshold, this.size);
     }
 }

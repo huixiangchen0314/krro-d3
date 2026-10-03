@@ -3,49 +3,48 @@ package top.kzre.krro.d3.core.util;
 import java.util.Arrays;
 
 /**
- * long → int 原始类型哈希表——开放寻址——线性探测。
+ * long → Object 原始类型哈希表——开放寻址——线性探测。
  *
- * <p><b>空槽约定</b>：value = -1 表示空槽。
+ * <p><b>空槽约定</b>：value = {@code null} 表示空槽。
+ * 因此不能存储 {@code null} 作为合法值。
  *
  * <p><b>复用</b>：{@link #ensureCapacity(int)} 保留数组容量——
  * 避免大数组反复分配进入老年代。配合 ThreadLocal 使用。
  *
  * <p><b>线程契约</b>：非线程安全。
+ *
+ * @param <V> 值类型
  */
-public final class LongIntMap {
+public final class LongObjectMap<V> {
 
-    private static final int EMPTY_VALUE = -1;
-
-    private long[] keys;
-    private int[]  values;
-    private int    mask;
-    private int    size;
-    private int    threshold;
+    private long[]   keys;
+    private Object[] values;
+    private int      mask;
+    private int      size;
+    private int      threshold;
 
     // ═══════════════════════════════════════════════
     // 构造
     // ═══════════════════════════════════════════════
 
-    public LongIntMap() { this(16); }
+    public LongObjectMap() { this(16); }
 
-    public LongIntMap(int expectedSize) {
+    public LongObjectMap(int expectedSize) {
         int cap = 1;
         while (cap < expectedSize * 2) cap <<= 1;   // 负载因子 0.5
         this.keys      = new long[cap];
-        this.values    = new int[cap];
+        this.values    = new Object[cap];
         this.mask      = cap - 1;
         this.threshold = cap / 2;
         this.size      = 0;
     }
 
     // ═══════════════════════════════════════════════
-    // 复用——不清数组——只重置状态
+    // 复用
     // ═══════════════════════════════════════════════
 
     /**
      * 重置为空——保留当前容量。
-     *
-     * <p>比 {@code clear()} 语义更明确——用于"下次使用前重置"。
      */
     public void reset() {
         clear();
@@ -54,9 +53,6 @@ public final class LongIntMap {
     /**
      * 确保容量至少能容纳 {@code expected} 个条目——不足则扩容。
      * 现有内容被清除。
-     *
-     * <p>用于 ThreadLocal 复用场景——容量随最大使用量增长——
-     * 之后不再分配。
      */
     public void ensureCapacity(int expected) {
         int needed = 1;
@@ -64,7 +60,7 @@ public final class LongIntMap {
 
         if (keys.length < needed) {
             this.keys      = new long[needed];
-            this.values    = new int[needed];
+            this.values    = new Object[needed];
             this.mask      = needed - 1;
             this.threshold = needed / 2;
         }
@@ -75,18 +71,25 @@ public final class LongIntMap {
     // 查询
     // ═══════════════════════════════════════════════
 
-    public int get(long key) {
+    @SuppressWarnings("unchecked")
+    public V get(long key) {
         int idx = hash(key) & mask;
-        while (values[idx] != EMPTY_VALUE) {
-            if (keys[idx] == key) return values[idx];
+        while (values[idx] != null) {
+            if (keys[idx] == key) return (V) values[idx];
             idx = (idx + 1) & mask;
         }
-        return -1;
+        return null;
+    }
+
+    /** 返回默认值——key 不存在时。 */
+    public V getOrDefault(long key, V defaultValue) {
+        V v = get(key);
+        return v != null ? v : defaultValue;
     }
 
     public boolean containsKey(long key) {
         int idx = hash(key) & mask;
-        while (values[idx] != EMPTY_VALUE) {
+        while (values[idx] != null) {
             if (keys[idx] == key) return true;
             idx = (idx + 1) & mask;
         }
@@ -97,16 +100,18 @@ public final class LongIntMap {
     // 插入
     // ═══════════════════════════════════════════════
 
-    public int put(long key, int value) {
-        if (value == EMPTY_VALUE) {
-            throw new IllegalArgumentException("value must not be -1");
+    /** 返回旧值——key 原本不存在返回 null。 */
+    @SuppressWarnings("unchecked")
+    public V put(long key, V value) {
+        if (value == null) {
+            throw new IllegalArgumentException("value must not be null");
         }
         if (size >= threshold) grow();
 
         int idx = hash(key) & mask;
-        while (values[idx] != EMPTY_VALUE) {
+        while (values[idx] != null) {
             if (keys[idx] == key) {
-                int old = values[idx];
+                V old = (V) values[idx];
                 values[idx] = value;
                 return old;
             }
@@ -116,7 +121,53 @@ public final class LongIntMap {
         keys[idx]   = key;
         values[idx] = value;
         size++;
-        return -1;
+        return null;
+    }
+
+    /** 删除——返回旧值——不存在返回 null。 */
+    @SuppressWarnings("unchecked")
+    public V remove(long key) {
+        int idx = hash(key) & mask;
+        while (values[idx] != null) {
+            if (keys[idx] == key) {
+                V old = (V) values[idx];
+                values[idx] = null;
+                size--;
+
+                // 重建后续连续段——避免探测链断裂
+                int next = (idx + 1) & mask;
+                while (values[next] != null) {
+                    long k = keys[next];
+                    Object v = values[next];
+                    values[next] = null;
+                    size--;
+                    put(k, (V) v);
+                    next = (next + 1) & mask;
+                }
+                return old;
+            }
+            idx = (idx + 1) & mask;
+        }
+        return null;
+    }
+
+    // ═══════════════════════════════════════════════
+    // 遍历
+    // ═══════════════════════════════════════════════
+
+    @FunctionalInterface
+    public interface LongObjectVisitor<V> {
+        void visit(long key, V value);
+    }
+
+    public void forEach(LongObjectVisitor<V> visitor) {
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != null) {
+                @SuppressWarnings("unchecked")
+                V v = (V) values[i];
+                visitor.visit(keys[i], v);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════
@@ -129,7 +180,7 @@ public final class LongIntMap {
     public int capacity() { return keys.length; }
 
     public void clear() {
-        Arrays.fill(values, EMPTY_VALUE);
+        Arrays.fill(values, null);
         size = 0;
     }
 
@@ -138,19 +189,21 @@ public final class LongIntMap {
     // ═══════════════════════════════════════════════
 
     private void grow() {
-        long[] oldKeys   = keys;
-        int[]  oldValues = values;
+        long[]   oldKeys   = keys;
+        Object[] oldValues = values;
 
         int newCap = keys.length << 1;
         keys      = new long[newCap];
-        values    = new int[newCap];
+        values    = new Object[newCap];
         mask      = newCap - 1;
         threshold = newCap / 2;
         size      = 0;
 
         for (int i = 0; i < oldKeys.length; i++) {
-            if (oldValues[i] != EMPTY_VALUE) {
-                put(oldKeys[i], oldValues[i]);
+            if (oldValues[i] != null) {
+                @SuppressWarnings("unchecked")
+                V v = (V) oldValues[i];
+                put(oldKeys[i], v);
             }
         }
     }
@@ -162,24 +215,26 @@ public final class LongIntMap {
     private static int hash(long x) {
         x = (x ^ (x >>> 33)) * 0xff51afd7ed558ccdL;
         x = (x ^ (x >>> 33)) * 0xc4ceb9fe1a85ec53L;
-        x = x ^ (x >>> 33);
+        x = (x ^ (x >>> 33));
         return (int) x;
     }
 
-    private LongIntMap(long[] keys, int[] values, int mask, int threshold, int size) {
-        this.keys      = keys;
-        this.values    = values;
-        this.mask      = mask;
-        this.threshold = threshold;
-        this.size      = size;
-    }
+    /**
+     * 复制——返回一个独立的新实例。
+     *
+     * <p>只复制层级结构——不复制 value 对象。
+     * 新旧 map 共享同一批 value。
+     */
+    public LongObjectMap<V> copy() {
+        LongObjectMap<V> dst = new LongObjectMap<>();
+        dst.keys      = new long[this.keys.length];
+        dst.values    = new Object[this.values.length];
+        dst.mask      = this.mask;
+        dst.threshold = this.threshold;
+        dst.size      = this.size;
 
-    public LongIntMap copy() {
-        int n = this.keys.length;
-        long[] newKeys   = new long[n];
-        int[]  newValues = new int[n];
-        System.arraycopy(this.keys,   0, newKeys,   0, n);
-        System.arraycopy(this.values, 0, newValues, 0, n);
-        return new LongIntMap(newKeys, newValues, this.mask, this.threshold, this.size);
+        System.arraycopy(this.keys,   0, dst.keys,   0, this.keys.length);
+        System.arraycopy(this.values, 0, dst.values, 0, this.values.length);
+        return dst;
     }
 }

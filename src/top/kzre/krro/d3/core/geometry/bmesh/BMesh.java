@@ -1,10 +1,7 @@
 package top.kzre.krro.d3.core.geometry.bmesh;
 
-import top.kzre.krro.d3.core.util.cow.CopyOnWrite;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteObject;
-import top.kzre.krro.d3.core.util.cow.ListResource;
+import top.kzre.krro.d3.core.util.SegmentizedIndexAllocator;
+import top.kzre.krro.d3.core.util.cow.*;
 
 /**
  * BMesh——编辑内核。
@@ -179,16 +176,16 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     // ═══════════════════════════════════════════════
 
     /** 顶点索引分配器。 */
-    private final CopyOnWriteObject<AllocatorResource> vertAllocator;
+    private final CopyOnWriteObject<SegmentizedIndexAllocatorResource> vertAllocator;
 
     /** 边索引分配器。 */
-    private final CopyOnWriteObject<AllocatorResource> edgeAllocator;
+    private final CopyOnWriteObject<SegmentizedIndexAllocatorResource> edgeAllocator;
 
     /** 环索引分配器。 */
-    private final CopyOnWriteObject<AllocatorResource> loopAllocator;
+    private final CopyOnWriteObject<SegmentizedIndexAllocatorResource> loopAllocator;
 
     /** 面索引分配器。 */
-    private final CopyOnWriteObject<AllocatorResource> faceAllocator;
+    private final CopyOnWriteObject<SegmentizedIndexAllocatorResource> faceAllocator;
 
     // ═══════════════════════════════════════════════
     // 全参构造器
@@ -211,10 +208,10 @@ public final class BMesh implements CopyOnWrite<BMesh> {
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   faceSubmeshIds,
             CopyOnWriteObject<ListResource<CopyOnWriteInts>>   faceTopology,
 
-            CopyOnWriteObject<AllocatorResource> vertAllocator,
-            CopyOnWriteObject<AllocatorResource> edgeAllocator,
-            CopyOnWriteObject<AllocatorResource> loopAllocator,
-            CopyOnWriteObject<AllocatorResource> faceAllocator) {
+            CopyOnWriteObject<SegmentizedIndexAllocatorResource> vertAllocator,
+            CopyOnWriteObject<SegmentizedIndexAllocatorResource> edgeAllocator,
+            CopyOnWriteObject<SegmentizedIndexAllocatorResource> loopAllocator,
+            CopyOnWriteObject<SegmentizedIndexAllocatorResource> faceAllocator) {
 
         this.vertPositions = vertPositions;
         this.vertOutEdges  = vertOutEdges;
@@ -286,10 +283,10 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     // 访问器——分配器
     // ═══════════════════════════════════════════════
 
-    public CopyOnWriteObject<AllocatorResource> vertAllocator() { return vertAllocator; }
-    public CopyOnWriteObject<AllocatorResource> edgeAllocator() { return edgeAllocator; }
-    public CopyOnWriteObject<AllocatorResource> loopAllocator() { return loopAllocator; }
-    public CopyOnWriteObject<AllocatorResource> faceAllocator() { return faceAllocator; }
+    public CopyOnWriteObject<SegmentizedIndexAllocatorResource> vertAllocator() { return vertAllocator; }
+    public CopyOnWriteObject<SegmentizedIndexAllocatorResource> edgeAllocator() { return edgeAllocator; }
+    public CopyOnWriteObject<SegmentizedIndexAllocatorResource> loopAllocator() { return loopAllocator; }
+    public CopyOnWriteObject<SegmentizedIndexAllocatorResource> faceAllocator() { return faceAllocator; }
 
     // ═══════════════════════════════════════════════
     // 便利工厂——create
@@ -299,9 +296,9 @@ public final class BMesh implements CopyOnWrite<BMesh> {
         return new CopyOnWriteObject<>(new ListResource<>());
     }
 
-    private static CopyOnWriteObject<AllocatorResource> newAllocator(int segmentSize) {
+    private static CopyOnWriteObject<SegmentizedIndexAllocatorResource> newAllocator(int segmentSize) {
         return new CopyOnWriteObject<>(
-                new AllocatorResource(new SegmentizedIndexAllocator(segmentSize)));
+                new SegmentizedIndexAllocatorResource(new SegmentizedIndexAllocator(segmentSize)));
     }
 
     /**

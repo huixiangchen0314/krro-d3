@@ -1,10 +1,7 @@
 package top.kzre.krro.d3.core.geometry.bmesh;
 
-import top.kzre.krro.d3.core.util.cow.CopyOnWrite;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteObject;
-import top.kzre.krro.d3.core.util.cow.ListResource;
+import top.kzre.krro.d3.core.util.SegmentizedIndexAllocator;
+import top.kzre.krro.d3.core.util.cow.*;
 import top.kzre.krro.util.arena.AllocateResult;
 import top.kzre.krro.util.arena.ArenaTemplate;
 import top.kzre.krro.util.arena.FloatArenaView;
@@ -238,7 +235,7 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
     // ═══════════════════════════════════════════════
 
     private static SegmentizedIndexAllocator allocatorOf(
-            CopyOnWriteObject<AllocatorResource> cow) {
+            CopyOnWriteObject<SegmentizedIndexAllocatorResource> cow) {
         return cow.getSnapshot().getAllocator();
     }
 

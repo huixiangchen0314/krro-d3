@@ -19,6 +19,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.List;
 
+// TODO deprecated, 不持有所有权，只是wrap
 /**
  * 扩展网格——拥有 {@link Mesh} 所有权 + 管理派生数据缓存。
  *

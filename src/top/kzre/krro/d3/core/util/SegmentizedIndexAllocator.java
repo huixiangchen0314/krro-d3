@@ -1,7 +1,4 @@
-package top.kzre.krro.d3.core.geometry.bmesh;
-
-import top.kzre.krro.d3.core.util.IntList;
-import top.kzre.krro.d3.core.util.IntQueue;
+package top.kzre.krro.d3.core.util;
 
 /**
  * 分段索引分配器——固定段大小——FIFO 空闲队列。

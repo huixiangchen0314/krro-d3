@@ -6,6 +6,7 @@
         top.kzre/deflayout {:mvn/version "0.1.0"}
         top.kzre/krro-util-math {:mvn/version "1.0-SNAPSHOT"}
         top.kzre/krro-util-arena {:mvn/version "1.0-SNAPSHOT"}
+        top.kzre/krro-core {:mvn/version "0.1.0"}
         }
 
  :aliases
