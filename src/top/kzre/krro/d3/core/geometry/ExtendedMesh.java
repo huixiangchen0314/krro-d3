@@ -3,7 +3,6 @@ package top.kzre.krro.d3.core.geometry;
 import top.kzre.krro.d3.core.geometry.algo.AngleClusteredNormals;
 import top.kzre.krro.d3.core.geometry.algo.CornerEdgeLookup;
 import top.kzre.krro.d3.core.geometry.algo.FaceAabbScan;
-import top.kzre.krro.d3.core.geometry.algo.HashDedupEdges;
 import top.kzre.krro.d3.core.geometry.algo.MikkTSpaceTangents;
 import top.kzre.krro.d3.core.geometry.algo.MinMaxScan;
 import top.kzre.krro.d3.core.util.cow.CopyOnWrite;
@@ -17,9 +16,8 @@ import top.kzre.krro.util.arena.IntArenaView;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-import java.util.List;
 
-// TODO deprecated, 不持有所有权，只是wrap
+// TODO deprecated, 不持有所有权，
 /**
  * 扩展网格——拥有 {@link Mesh} 所有权 + 管理派生数据缓存。
  *
@@ -63,7 +61,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // 字段
     // ═══════════════════════════════════════════════
 
-    private final Mesh                            mesh;
+    private final Mesh mesh;
     private final AutoGrowFloatArrayArenaTemplate floatTemplate;
     private final AutoGrowIntArrayArenaTemplate   intTemplate;
 
@@ -77,8 +75,6 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     /** 面角法线缓存。float3[ncorners]。null 表示未计算。 */
     private CopyOnWriteFloats cachedCornerNormals;
 
-    /** 边表缓存。int2[nedges]。null 表示未计算。 */
-    private CopyOnWriteInts cachedEdges;
 
     /** 面角 → 边映射缓存。int[ncorners]。null 表示未计算。 */
     private CopyOnWriteInts cachedCornerEdges;
@@ -139,8 +135,6 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     public long vertCount()   { return mesh.vertCount(); }
     public long cornerCount() { return mesh.cornerCount(); }
     public long faceCount()   { return mesh.faceCount(); }
-    public List<SubMesh> submeshes() { return mesh.submeshes(); }
-    public void submeshes(List<SubMesh> s) { mesh.submeshes(s); }
 
     // ═══════════════════════════════════════════════
     // 本质数据——读
@@ -217,19 +211,6 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
         return n;
     }
 
-    /**
-     * 边表。int2[nedges]。
-     *
-     * <p>依赖：topology。
-     */
-    public int[] getEdges() {
-        CopyOnWriteInts c = cachedEdges;
-        if (c != null) return c.getIntsSnapshot();
-
-        int[] e = HashDedupEdges.compute(mesh);
-        cachedEdges = allocateInts(e);
-        return e;
-    }
 
     /**
      * 面角 → 边映射。int[ncorners]。
@@ -240,7 +221,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
         CopyOnWriteInts c = cachedCornerEdges;
         if (c != null) return c.getIntsSnapshot();
 
-        int[] edges = getEdges();
+        int[] edges = null;
         int[] ce = CornerEdgeLookup.compute(mesh, edges);
         cachedCornerEdges = allocateInts(ce);
         return ce;
@@ -334,9 +315,6 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
         if (cachedCornerNormals != null) { cachedCornerNormals.close(); cachedCornerNormals = null; }
     }
 
-    private void discardEdges() {
-        if (cachedEdges != null) { cachedEdges.close(); cachedEdges = null; }
-    }
 
     private void discardCornerEdges() {
         if (cachedCornerEdges != null) { cachedCornerEdges.close(); cachedCornerEdges = null; }
@@ -356,7 +334,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
     private void discardAll() {
         discardCornerNormals();
-        discardEdges();
+
         discardCornerEdges();
         discardTangents();
         discardBounds();
@@ -373,7 +351,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
                 mesh.shared(), floatTemplate, intTemplate, smoothAngleRadians);
 
         m.cachedCornerNormals = cachedCornerNormals == null ? null : cachedCornerNormals.shared();
-        m.cachedEdges         = cachedEdges         == null ? null : cachedEdges.shared();
+
         m.cachedCornerEdges   = cachedCornerEdges   == null ? null : cachedCornerEdges.shared();
         m.cachedTangents      = cachedTangents      == null ? null : cachedTangents.shared();
         m.cachedBounds        = cachedBounds        == null ? null : cachedBounds.shared();

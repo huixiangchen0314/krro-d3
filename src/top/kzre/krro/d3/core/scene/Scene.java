@@ -20,7 +20,7 @@ import top.kzre.krro.d3.core.util.cow.*;
  * <p>不含逻辑——操作由外部 Editor / 函数完成。
  */
 public final class Scene implements CopyOnWrite<Scene> {
-
+    private final long sceneId;
     /** 根节点 id 列表 */
     private final CopyOnWriteObject<LongListResource> roots;
 
@@ -43,13 +43,14 @@ public final class Scene implements CopyOnWrite<Scene> {
     private final CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms;
 
     public Scene(
-            CopyOnWriteObject<LongListResource> roots,
+            long sceneId, CopyOnWriteObject<LongListResource> roots,
             CopyOnWriteObject<LongLongMapResource> firstChild,
             CopyOnWriteObject<LongLongMapResource> parent,
             CopyOnWriteObject<LongLongMapResource> nextSibling,
             CopyOnWriteObject<LongLongMapResource> prevSibling,
             CopyOnWriteObject<LongObjectMapResource<SceneObject>> objects,
             CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms) {
+        this.sceneId = sceneId;
         this.roots       = roots;
         this.firstChild  = firstChild;
         this.parent      = parent;
@@ -58,6 +59,7 @@ public final class Scene implements CopyOnWrite<Scene> {
         this.objects     = objects;
         this.transforms  = transforms;
     }
+    public long sceneId() { return sceneId; }
 
     public CopyOnWriteObject<LongListResource> roots() { return roots; }
     public CopyOnWriteObject<LongLongMapResource> firstChild()  { return firstChild; }
@@ -70,7 +72,7 @@ public final class Scene implements CopyOnWrite<Scene> {
     @Override
     public Scene shared() {
         return new Scene(
-                roots.shared(),
+                sceneId, roots.shared(),
                 firstChild.shared(),
                 parent.shared(),
                 nextSibling.shared(),
