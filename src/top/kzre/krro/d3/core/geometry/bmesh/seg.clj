@@ -32,9 +32,9 @@
     [java.util List]
     (top.kzre.krro.d3.core.geometry.bmesh BMesh)
     (top.kzre.krro.d3.core.util.cow
-      CopyOnWriteFloats
-      CopyOnWriteInts
-      CopyOnWriteObject
+      DefaultCopyOnWriteFloats
+      DefaultCopyOnWriteInts
+      DefaultCopyOnWriteObject
       ListResource)))
 
 (set! *unchecked-math* true)
@@ -42,14 +42,14 @@
 (defmacro seg-readonly
   "段访问宏"
   [cow seg-id]
-  `(let [^ListResource lr# (.getSnapshot ^CopyOnWriteObject ~cow)
+  `(let [^ListResource lr# (.getSnapshot ^DefaultCopyOnWriteObject ~cow)
          ^List segs# (.getList lr#)]
      (.get segs# (int ~seg-id))))
 
 (defmacro seg-for-write
   "段访问宏, 可写"
   [cow seg-id]
-  `(let [^ListResource lr# (.getForWrite ^CopyOnWriteObject ~cow)
+  `(let [^ListResource lr# (.getForWrite ^DefaultCopyOnWriteObject ~cow)
          ^List segs# (.getList lr#)]
      (.get segs# (int ~seg-id))))
 
@@ -79,7 +79,7 @@
         (+ (quot (.offset seg) 4) local-idx)
         args...)"
   [seg f local-idx & args]
-  `(~f (.getFloatsSnapshot ^CopyOnWriteFloats ~seg)
+  `(~f (.getFloatsSnapshot ^DefaultCopyOnWriteFloats ~seg)
      (unchecked-add
        (long (quot (.offset ~seg) Float/BYTES))
        (long ~local-idx))
@@ -93,7 +93,7 @@
         (+ (quot (.offset seg) 4) local-idx)
         args...)"
   [seg f local-idx & args]
-  `(~f (.getFloatsForWrite ^CopyOnWriteFloats ~seg)
+  `(~f (.getFloatsForWrite ^DefaultCopyOnWriteFloats ~seg)
      (unchecked-add
        (long (quot (.offset ~seg) Float/BYTES))
        (long ~local-idx))
@@ -111,7 +111,7 @@
         (+ (quot (.offset seg) 4) local-idx)
         args...)"
   [seg f local-idx & args]
-  `(~f (.getIntsSnapshot ^CopyOnWriteInts ~seg)
+  `(~f (.getIntsSnapshot ^DefaultCopyOnWriteInts ~seg)
      (unchecked-add
        (long (quot (.offset ~seg) Integer/BYTES))
        (long ~local-idx))
@@ -125,7 +125,7 @@
         (+ (quot (.offset seg) 4) local-idx)
         args...)"
   [seg f local-idx & args]
-  `(~f (.getIntsForWrite ^CopyOnWriteInts ~seg)
+  `(~f (.getIntsForWrite ^DefaultCopyOnWriteInts ~seg)
      (unchecked-add
        (long (quot (.offset ~seg) Integer/BYTES))
        (long ~local-idx))

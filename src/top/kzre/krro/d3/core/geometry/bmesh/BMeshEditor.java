@@ -253,7 +253,7 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
             throw new IllegalStateException(
                     "Float segment allocation failed: " + byteSize);
         }
-        list.set(segId, new CopyOnWriteFloats(r.getView()));
+        list.set(segId, new DefaultCopyOnWriteFloats(r.getView()));
     }
 
     private void ensureIntSegment(
@@ -270,7 +270,7 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
             throw new IllegalStateException(
                     "Int segment allocation failed: " + byteSize);
         }
-        list.set(segId, new CopyOnWriteInts(r.getView()));
+        list.set(segId, new DefaultCopyOnWriteInts(r.getView()));
     }
 
     // ═══════════════════════════════════════════════
@@ -287,7 +287,11 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
         CopyOnWriteFloats seg = list.get(segId);
         if (seg == null) return;
 
-        seg.close();
+        try {
+            seg.close();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         list.set(segId, null);
     }
 
@@ -301,7 +305,11 @@ public final class BMeshEditor implements CopyOnWrite<BMeshEditor> {
         CopyOnWriteInts seg = list.get(segId);
         if (seg == null) return;
 
-        seg.close();
+        try {
+            seg.close();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         list.set(segId, null);
     }
 }

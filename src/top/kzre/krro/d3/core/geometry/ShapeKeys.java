@@ -75,7 +75,7 @@ public final class ShapeKeys implements CopyOnWrite<ShapeKeys> {
 
         public ShapeKeyDelta(
                 String name,
-                CopyOnWriteInts   affectedIndices,
+                CopyOnWriteInts affectedIndices,
                 CopyOnWriteFloats deltas) {
             this.name            = name;
             this.affectedIndices = affectedIndices;
@@ -83,7 +83,7 @@ public final class ShapeKeys implements CopyOnWrite<ShapeKeys> {
         }
 
         public String name()                     { return name; }
-        public CopyOnWriteInts   affectedIndices() { return affectedIndices; }
+        public CopyOnWriteInts affectedIndices() { return affectedIndices; }
         public CopyOnWriteFloats deltas()          { return deltas; }
 
         /** 是否全量——所有顶点都受影响。 */

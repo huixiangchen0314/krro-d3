@@ -42,7 +42,7 @@ public final class Bezier implements CopyOnWrite<Bezier> {
 
     public Bezier(CopyOnWriteFloats points,
                   CopyOnWriteFloats handles,
-                  CopyOnWriteInts   continuities,
+                  CopyOnWriteInts continuities,
                   boolean           closed) {
         this.points       = points;
         this.handles      = handles;
@@ -56,7 +56,7 @@ public final class Bezier implements CopyOnWrite<Bezier> {
 
     public CopyOnWriteFloats points()       { return points; }
     public CopyOnWriteFloats handles()      { return handles; }
-    public CopyOnWriteInts   continuities() { return continuities; }
+    public CopyOnWriteInts continuities() { return continuities; }
     public boolean           closed()       { return closed; }
 
     // ═══════════════════════════════════════════════

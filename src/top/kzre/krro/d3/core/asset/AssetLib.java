@@ -11,10 +11,9 @@ import top.kzre.krro.d3.core.util.cow.ResourceTable;
  * <p>类型写死——领域有界，无扩展场景。
  */
 public final class AssetLib implements CopyOnWrite<AssetLib> {
-
     private final ResourceTable<MeshAsset> meshes;
 
-    private AssetLib(ResourceTable<MeshAsset> meshes) {
+    public AssetLib(ResourceTable<MeshAsset> meshes) {
         this.meshes = meshes;
     }
 

@@ -11,6 +11,7 @@ import java.util.Arrays;
  * <p><b>复用</b>：{@link #ensureCapacity(int)} 保留数组容量——
  * 避免大数组反复分配进入老年代。配合 ThreadLocal 使用。
  *
+ *
  * <p><b>线程契约</b>：非线程安全。
  */
 public final class LongLongMap {
@@ -34,6 +35,7 @@ public final class LongLongMap {
         while (cap < expectedSize * 2) cap <<= 1;   // 负载因子 0.5
         this.keys      = new long[cap];
         this.values    = new long[cap];
+        // new long[] 默认全 0——必须初始化为 EMPTY_VALUE，否则探测循环死循环
         Arrays.fill(this.values, EMPTY_VALUE);
         this.mask      = cap - 1;
         this.threshold = cap / 2;
@@ -141,6 +143,7 @@ public final class LongLongMap {
         int newCap = keys.length << 1;
         keys      = new long[newCap];
         values    = new long[newCap];
+        // 新数组必须初始化为 EMPTY_VALUE——否则 put 旧元素时死循环
         Arrays.fill(values, EMPTY_VALUE);
         mask      = newCap - 1;
         threshold = newCap / 2;
@@ -160,7 +163,7 @@ public final class LongLongMap {
     private static int hash(long x) {
         x = (x ^ (x >>> 33)) * 0xff51afd7ed558ccdL;
         x = (x ^ (x >>> 33)) * 0xc4ceb9fe1a85ec53L;
-        x = (x ^ (x >>> 33));
+        x = x ^ (x >>> 33);
         return (int) x;
     }
 
@@ -180,4 +183,59 @@ public final class LongLongMap {
         System.arraycopy(this.values, 0, newValues, 0, n);
         return new LongLongMap(newKeys, newValues, this.mask, this.threshold, this.size);
     }
+
+    /**
+     * 删除 key。存在返回旧值，不存在返回 {@link Long#MIN_VALUE}。
+     *
+     * <p><b>backward-shift 删除</b>：删除后把后面连续的元素往前挪，
+     * 保持探测链连续——不能简单置空，否则后面同哈希的元素不可达。
+     *
+     * <p><b>复杂度</b>：O(删除位置之后的链长)。典型情况下是常数级。
+     */
+    public long remove(long key) {
+        int idx = hash(key) & mask;
+        while (values[idx] != EMPTY_VALUE) {
+            if (keys[idx] == key) {
+                long oldValue = values[idx];
+                backwardShiftDelete(idx);
+                size--;
+                return oldValue;
+            }
+            idx = (idx + 1) & mask;
+        }
+        return EMPTY_VALUE;   // 不存在
+    }
+
+    /**
+     * 删除 {@code idx} 位置的元素，并把后面能前移的元素挪过来。
+     *
+     * <p><b>前移判据</b>：位置 {@code next} 的元素能移到 {@code hole}，
+     * 当且仅当它从 {@code hole} 开始查找仍然可达——即它的理想位置
+     * {@code ideal = hash(key) & mask} 不在 {@code (hole, next)} 的
+     * 环形区间内。
+     */
+    private void backwardShiftDelete(int idx) {
+        values[idx] = EMPTY_VALUE;   // 先清空删除位置
+
+        int hole = idx;
+        int next = (idx + 1) & mask;
+
+        while (values[next] != EMPTY_VALUE) {
+            int ideal = hash(keys[next]) & mask;
+
+            // 环形区间判断：ideal 是否在 (hole, next) 内
+            boolean canMove = (hole < next)
+                    ? (ideal <= hole || ideal > next)   // 不环绕
+                    : (ideal <= hole && ideal > next);  // 环绕
+
+            if (canMove) {
+                keys[hole]   = keys[next];
+                values[hole] = values[next];
+                values[next] = EMPTY_VALUE;
+                hole = next;
+            }
+            next = (next + 1) & mask;
+        }
+    }
+
 }

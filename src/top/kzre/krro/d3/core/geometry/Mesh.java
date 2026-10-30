@@ -49,10 +49,10 @@ public final class Mesh implements CopyOnWrite<Mesh> {
     private final CopyOnWriteFloats positions;
 
     /** 面角 → 顶点索引。int——stride 1——长度 = cornerCount。 */
-    private final CopyOnWriteInts   cornerVerts;
+    private final CopyOnWriteInts cornerVerts;
 
     /** 面 → 面角范围偏移。int——stride 1——长度 = faceCount + 1。 */
-    private final CopyOnWriteInts   faceOffsets;
+    private final CopyOnWriteInts faceOffsets;
 
     /**
      * 面角 UV 通道。
@@ -66,7 +66,7 @@ public final class Mesh implements CopyOnWrite<Mesh> {
      * 边端点。int2——stride 2——长度 = edgeCount * 2。
      * 规范形式：v0 &lt; v1。边索引 = 数组位置 / 2。
      */
-    private final CopyOnWriteInts   edgeEndpoints;
+    private final CopyOnWriteInts edgeEndpoints;
 
     /** 材质分组。ShallowListResource——只持有引用，不拥有 SubMesh。 */
     private final CopyOnWriteObject<ShallowListResource<SubMesh>> submeshes;
@@ -77,10 +77,10 @@ public final class Mesh implements CopyOnWrite<Mesh> {
 
     public Mesh(
             CopyOnWriteFloats positions,
-            CopyOnWriteInts   cornerVerts,
-            CopyOnWriteInts   faceOffsets,
+            CopyOnWriteInts cornerVerts,
+            CopyOnWriteInts faceOffsets,
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> cornerUvs,
-            CopyOnWriteInts   edgeEndpoints,
+            CopyOnWriteInts edgeEndpoints,
             CopyOnWriteObject<ShallowListResource<SubMesh>> submeshes) {
 
         if (positions == null || cornerVerts == null || faceOffsets == null
@@ -116,9 +116,9 @@ public final class Mesh implements CopyOnWrite<Mesh> {
     // ═══════════════════════════════════════════════
 
     public CopyOnWriteFloats positions()     { return positions; }
-    public CopyOnWriteInts   cornerVerts()   { return cornerVerts; }
-    public CopyOnWriteInts   faceOffsets()   { return faceOffsets; }
-    public CopyOnWriteInts   edgeEndpoints() { return edgeEndpoints; }
+    public CopyOnWriteInts cornerVerts()   { return cornerVerts; }
+    public CopyOnWriteInts faceOffsets()   { return faceOffsets; }
+    public CopyOnWriteInts edgeEndpoints() { return edgeEndpoints; }
 
     public CopyOnWriteObject<ListResource<CopyOnWriteFloats>> cornerUvs() { return cornerUvs; }
     public CopyOnWriteObject<ShallowListResource<SubMesh>> submeshes()    { return submeshes; }

@@ -25,10 +25,10 @@ public final class MikkTSpaceTangents {
         int[]   cornerVerts = mesh.cornerVerts().getIntsSnapshot();
         int[]   faceOffsets = mesh.faceOffsets().getIntsSnapshot();
         float[] positions   = mesh.positions().getFloatsSnapshot();
-        float[] uvs         = mesh.cornerUvs().getFloatsSnapshot();
+        float[] uvs         = mesh.cornerUvs().getSnapshot().getList().getFirst().getFloatsSnapshot();
 
         int posStart = (int) (mesh.positions().offset() / Float.BYTES);
-        int uvStart  = (int) (mesh.cornerUvs().offset()  / Float.BYTES);
+        int uvStart  = (int) (mesh.cornerUvs().getSnapshot().getList().getFirst().offset()  / Float.BYTES);
 
         int vertCount   = (int) mesh.vertCount();
         int faceCount   = (int) mesh.faceCount();

@@ -1,66 +1,27 @@
 package top.kzre.krro.d3.core.util.cow;
 
 /**
- * 属性级 COW 单元——包装任意引用计数资源。
+ * 对象级 COW 单元接口——包装任意引用计数资源 {@link Resource}。
  *
- * <p><b>Resource 契约</b>：
- * <ul>
- *   <li>{@code copy()} —— 创建独立副本——引用计数 1</li>
- *   <li>{@code acquire()} —— 引用 +1</li>
- *   <li>{@code dispose()} —— 引用 -1——归零时销毁</li>
- *   <li>{@code isExclusive()} —— 引用计数 == 1</li>
- * </ul>
+ * <p><b>只有资源类型参数 {@code R}</b>，实现类型固定为
+ * {@code CopyOnWriteObject<R>}，继承
+ * {@link CopyOnWrite}{@code <CopyOnWriteObject<R>>}。
  *
- * <p><b>线程契约</b>：写路径 + 生命周期 synchronized——
- * 读路径同样 synchronized（返回 data 引用）。
+ * <p>{@code getSnapshot()} / {@code getForWrite()} 返回具体资源类型
+ * {@code R}；{@code shared()} 返回 {@code CopyOnWriteObject<R>}。
  */
-public final class CopyOnWriteObject<T extends Resource<T>>
-        implements CopyOnWrite<CopyOnWriteObject<T>> {
-
-    private final Object lock = new Object();
-    private T data;
-
-    public CopyOnWriteObject(T data) {
-        if (data == null) throw new NullPointerException("data");
-        this.data = data;
-    }
-
-    /** 只读快照——调用方不得修改。 */
-    public T getSnapshot() {
-        synchronized (lock) {
-            return data;
-        }
-    }
+public interface CopyOnWriteObject<R extends Resource<R>>
+        extends CopyOnWrite<CopyOnWriteObject<R>> {
 
     /**
-     * 写访问——独占时直接返回——共享时复制。
+     * 只读快照——返回当前底层资源。调用方不得修改。
      */
-    public T getForWrite() {
-        synchronized (lock) {
-            if (data.isExclusive()) {
-                return data;
-            }
-            T old = data;
-            this.data = old.copy();
-            old.dispose();
-            return data;
-        }
-    }
+    R getSnapshot();
 
-    @Override
-    public CopyOnWriteObject<T> shared() {
-        synchronized (lock) {
-            data.acquire();
-            return new CopyOnWriteObject<>(data);
-        }
-    }
-
-    @Override
-    public void close() {
-        synchronized (lock) {
-            if (data == null) return;
-            data.dispose();
-            data = null;
-        }
-    }
+    /**
+     * 写访问——独占时直接返回，共享时复制后返回。
+     *
+     * @return 已隔离的可写资源
+     */
+    R getForWrite();
 }

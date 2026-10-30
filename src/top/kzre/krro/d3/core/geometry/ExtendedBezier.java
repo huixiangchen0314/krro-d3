@@ -4,8 +4,10 @@ import top.kzre.krro.d3.core.geometry.algo.BezierArcLength;
 import top.kzre.krro.d3.core.geometry.algo.BezierBoundsScan;
 import top.kzre.krro.d3.core.geometry.algo.BezierSample;
 import top.kzre.krro.d3.core.geometry.algo.BezierTangents;
+import top.kzre.krro.d3.core.util.ResourceUtils;
 import top.kzre.krro.d3.core.util.cow.CopyOnWrite;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
+import top.kzre.krro.d3.core.util.cow.DefaultCopyOnWriteFloats;
 import top.kzre.krro.util.arena.AllocateResult;
 import top.kzre.krro.util.arena.AutoGrowFloatArrayArenaTemplate;
 import top.kzre.krro.util.arena.FloatArenaView;
@@ -238,7 +240,7 @@ public final class ExtendedBezier implements CopyOnWrite<ExtendedBezier> {
 
         FloatArenaView view = r.getView();
         view.floatBuffer().put(data);
-        return new CopyOnWriteFloats(view);
+        return new DefaultCopyOnWriteFloats(view);
     }
 
     // ═══════════════════════════════════════════════
@@ -246,19 +248,43 @@ public final class ExtendedBezier implements CopyOnWrite<ExtendedBezier> {
     // ═══════════════════════════════════════════════
 
     private void discardSamplePositions() {
-        if (cachedSamplePositions != null) { cachedSamplePositions.close(); cachedSamplePositions = null; }
+        if (cachedSamplePositions != null) {
+            try {
+                cachedSamplePositions.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedSamplePositions = null; }
     }
 
     private void discardSampleTangents() {
-        if (cachedSampleTangents != null) { cachedSampleTangents.close(); cachedSampleTangents = null; }
+        if (cachedSampleTangents != null) {
+            try {
+                cachedSampleTangents.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedSampleTangents = null; }
     }
 
     private void discardBounds() {
-        if (cachedBounds != null) { cachedBounds.close(); cachedBounds = null; }
+        if (cachedBounds != null) {
+            try {
+                cachedBounds.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedBounds = null; }
     }
 
     private void discardArcLengths() {
-        if (cachedArcLengths != null) { cachedArcLengths.close(); cachedArcLengths = null; }
+        if (cachedArcLengths != null) {
+            try {
+                cachedArcLengths.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedArcLengths = null; }
     }
 
     private void discardAll() {
@@ -290,8 +316,11 @@ public final class ExtendedBezier implements CopyOnWrite<ExtendedBezier> {
     // ═══════════════════════════════════════════════
 
     @Override
-    public void close() throws Exception {
-        discardAll();
-        curve.close();
+    public void close() {
+        RuntimeException ex = ResourceUtils.closeDelayError(
+                cachedSamplePositions, cachedSampleTangents,
+                cachedBounds, cachedArcLengths,
+                curve);
+        if (ex != null) throw ex;
     }
 }

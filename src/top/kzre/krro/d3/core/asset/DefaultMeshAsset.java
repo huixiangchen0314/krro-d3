@@ -11,14 +11,20 @@ import top.kzre.krro.d3.core.util.cow.COWUtils;
 public final class DefaultMeshAsset extends MeshAsset {
 
 
-    DefaultMeshAsset(long assetId, ExtendedMesh mesh, Position origin, ShapeKeys shapeKeys) {
-        super(assetId, mesh, origin, shapeKeys);
+    DefaultMeshAsset(long assetId, ExtendedMesh mesh, ShapeKeys shapeKeys) {
+        super(assetId, mesh,shapeKeys);
+    }
+
+    public static DefaultMeshAsset create(long assetId,
+                                          ExtendedMesh mesh,
+                                          ShapeKeys shapeKeys) {
+        return new DefaultMeshAsset(assetId, mesh, shapeKeys);
     }
 
     @Override
     public DefaultMeshAsset shared() {
         return new DefaultMeshAsset(assetId,
-                mesh.shared(), origin,
+                mesh.shared(),
                 COWUtils.sharedNullable(shapeKeys));
     }
 }

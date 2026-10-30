@@ -5,19 +5,13 @@ import top.kzre.krro.d3.core.geometry.algo.CornerEdgeLookup;
 import top.kzre.krro.d3.core.geometry.algo.FaceAabbScan;
 import top.kzre.krro.d3.core.geometry.algo.MikkTSpaceTangents;
 import top.kzre.krro.d3.core.geometry.algo.MinMaxScan;
-import top.kzre.krro.d3.core.util.cow.CopyOnWrite;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
-import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
-import top.kzre.krro.util.arena.AllocateResult;
-import top.kzre.krro.util.arena.AutoGrowFloatArrayArenaTemplate;
-import top.kzre.krro.util.arena.AutoGrowIntArrayArenaTemplate;
-import top.kzre.krro.util.arena.FloatArenaView;
-import top.kzre.krro.util.arena.IntArenaView;
+import top.kzre.krro.d3.core.util.ResourceUtils;
+import top.kzre.krro.d3.core.util.cow.*;
+import top.kzre.krro.util.arena.*;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-// TODO deprecated, 不持有所有权，
 /**
  * 扩展网格——拥有 {@link Mesh} 所有权 + 管理派生数据缓存。
  *
@@ -62,8 +56,8 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // ═══════════════════════════════════════════════
 
     private final Mesh mesh;
-    private final AutoGrowFloatArrayArenaTemplate floatTemplate;
-    private final AutoGrowIntArrayArenaTemplate   intTemplate;
+    private final ArenaTemplate<?, FloatArenaView> floatTemplate;
+    private final ArenaTemplate<?, IntArenaView> intTemplate;
 
     /**
      * 平滑角度阈值——弧度——用于面角法线计算。
@@ -72,20 +66,30 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
      */
     private float smoothAngleRadians;
 
-    /** 面角法线缓存。float3[ncorners]。null 表示未计算。 */
+    /**
+     * 面角法线缓存。float3[ncorners]。null 表示未计算。
+     */
     private CopyOnWriteFloats cachedCornerNormals;
 
 
-    /** 面角 → 边映射缓存。int[ncorners]。null 表示未计算。 */
+    /**
+     * 面角 → 边映射缓存。int[ncorners]。null 表示未计算。
+     */
     private CopyOnWriteInts cachedCornerEdges;
 
-    /** 切线缓存。float4[ncorners]。null 表示未计算。 */
+    /**
+     * 切线缓存。float4[ncorners]。null 表示未计算。
+     */
     private CopyOnWriteFloats cachedTangents;
 
-    /** 包围盒缓存。float[6]。null 表示未计算。 */
+    /**
+     * 包围盒缓存。float[6]。null 表示未计算。
+     */
     private CopyOnWriteFloats cachedBounds;
 
-    /** 图元 AABB 缓存。float6[nfaces]。null 表示未计算。 */
+    /**
+     * 图元 AABB 缓存。float6[nfaces]。null 表示未计算。
+     */
     private CopyOnWriteFloats cachedFaceAabbs;
 
     // ═══════════════════════════════════════════════
@@ -93,17 +97,17 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // ═══════════════════════════════════════════════
 
     public ExtendedMesh(
-            Mesh                            mesh,
-            AutoGrowFloatArrayArenaTemplate floatTemplate,
-            AutoGrowIntArrayArenaTemplate   intTemplate,
-            float                           smoothAngleRadians) {
-        if (mesh == null)          throw new NullPointerException("mesh");
+            Mesh mesh,
+            ArenaTemplate<?, FloatArenaView> floatTemplate,
+            ArenaTemplate<?, IntArenaView> intTemplate,
+            float smoothAngleRadians) {
+        if (mesh == null) throw new NullPointerException("mesh");
         if (floatTemplate == null) throw new NullPointerException("floatTemplate");
-        if (intTemplate == null)   throw new NullPointerException("intTemplate");
+        if (intTemplate == null) throw new NullPointerException("intTemplate");
 
-        this.mesh               = mesh;
-        this.floatTemplate      = floatTemplate;
-        this.intTemplate        = intTemplate;
+        this.mesh = mesh;
+        this.floatTemplate = floatTemplate;
+        this.intTemplate = intTemplate;
         this.smoothAngleRadians = smoothAngleRadians;
     }
 
@@ -131,26 +135,53 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // Mesh 访问
     // ═══════════════════════════════════════════════
 
-    public Mesh sharedMesh() { return mesh.shared(); }
-    public long vertCount()   { return mesh.vertCount(); }
-    public long cornerCount() { return mesh.cornerCount(); }
-    public long faceCount()   { return mesh.faceCount(); }
+    public Mesh sharedMesh() {
+        return mesh.shared();
+    }
+
+    public long vertCount() {
+        return mesh.vertCount();
+    }
+
+    public long cornerCount() {
+        return mesh.cornerCount();
+    }
+
+    public long faceCount() {
+        return mesh.faceCount();
+    }
 
     // ═══════════════════════════════════════════════
     // 本质数据——读
     // ═══════════════════════════════════════════════
+    public CopyOnWriteFloats positions() {
+        return mesh.positions();
+    }
 
-    public float[]     getPositionsSnapshot()      { return mesh.positions().getFloatsSnapshot(); }
-    public FloatBuffer getPositionBufferSnapshot() { return mesh.positions().getFloatBufferSnapshot(); }
+    public float[] getPositionsSnapshot() {
+        return mesh.positions().getFloatsSnapshot();
+    }
 
-    public int[]     getCornerVertsSnapshot()      { return mesh.cornerVerts().getIntsSnapshot(); }
-    public IntBuffer getCornerVertBufferSnapshot() { return mesh.cornerVerts().getIntBufferSnapshot(); }
+    public FloatBuffer getPositionBufferSnapshot() {
+        return mesh.positions().getFloatBufferSnapshot();
+    }
 
-    public int[]     getFaceOffsetsSnapshot()      { return mesh.faceOffsets().getIntsSnapshot(); }
-    public IntBuffer getFaceOffsetBufferSnapshot() { return mesh.faceOffsets().getIntBufferSnapshot(); }
+    public int[] getCornerVertsSnapshot() {
+        return mesh.cornerVerts().getIntsSnapshot();
+    }
 
-    public float[]     getCornerUvsSnapshot()      { return mesh.cornerUvs().getFloatsSnapshot(); }
-    public FloatBuffer getCornerUvBufferSnapshot() { return mesh.cornerUvs().getFloatBufferSnapshot(); }
+    public IntBuffer getCornerVertBufferSnapshot() {
+        return mesh.cornerVerts().getIntBufferSnapshot();
+    }
+
+    public int[] getFaceOffsetsSnapshot() {
+        return mesh.faceOffsets().getIntsSnapshot();
+    }
+
+    public IntBuffer getFaceOffsetBufferSnapshot() {
+        return mesh.faceOffsets().getIntBufferSnapshot();
+    }
+
 
     // ═══════════════════════════════════════════════
     // 本质数据——写
@@ -185,13 +216,6 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
         return mesh.faceOffsets().getIntBufferForWrite();
     }
 
-    /**
-     * 声明写面角 UV——丢弃 tangents。
-     */
-    public FloatBuffer cornerUvForWrite() {
-        discardTangents();
-        return mesh.cornerUvs().getFloatBufferForWrite();
-    }
 
     // ═══════════════════════════════════════════════
     // 派生数据——读
@@ -288,7 +312,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
         FloatArenaView view = r.getView();
         view.floatBuffer().put(data);
-        return new CopyOnWriteFloats(view);
+        return new DefaultCopyOnWriteFloats(view);
     }
 
     private CopyOnWriteInts allocateInts(int[] data) {
@@ -304,7 +328,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
         IntArenaView view = r.getView();
         view.intBuffer().put(data);
-        return new CopyOnWriteInts(view);
+        return new DefaultCopyOnWriteInts(view);
     }
 
     // ═══════════════════════════════════════════════
@@ -312,24 +336,59 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // ═══════════════════════════════════════════════
 
     private void discardCornerNormals() {
-        if (cachedCornerNormals != null) { cachedCornerNormals.close(); cachedCornerNormals = null; }
+        if (cachedCornerNormals != null) {
+            try {
+                cachedCornerNormals.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedCornerNormals = null;
+        }
     }
 
 
     private void discardCornerEdges() {
-        if (cachedCornerEdges != null) { cachedCornerEdges.close(); cachedCornerEdges = null; }
+        if (cachedCornerEdges != null) {
+            try {
+                cachedCornerEdges.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedCornerEdges = null;
+        }
     }
 
     private void discardTangents() {
-        if (cachedTangents != null) { cachedTangents.close(); cachedTangents = null; }
+        if (cachedTangents != null) {
+            try {
+                cachedTangents.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedTangents = null;
+        }
     }
 
     private void discardBounds() {
-        if (cachedBounds != null) { cachedBounds.close(); cachedBounds = null; }
+        if (cachedBounds != null) {
+            try {
+                cachedBounds.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedBounds = null;
+        }
     }
 
     private void discardFaceAabbs() {
-        if (cachedFaceAabbs != null) { cachedFaceAabbs.close(); cachedFaceAabbs = null; }
+        if (cachedFaceAabbs != null) {
+            try {
+                cachedFaceAabbs.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            cachedFaceAabbs = null;
+        }
     }
 
     private void discardAll() {
@@ -352,10 +411,10 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
         m.cachedCornerNormals = cachedCornerNormals == null ? null : cachedCornerNormals.shared();
 
-        m.cachedCornerEdges   = cachedCornerEdges   == null ? null : cachedCornerEdges.shared();
-        m.cachedTangents      = cachedTangents      == null ? null : cachedTangents.shared();
-        m.cachedBounds        = cachedBounds        == null ? null : cachedBounds.shared();
-        m.cachedFaceAabbs     = cachedFaceAabbs     == null ? null : cachedFaceAabbs.shared();
+        m.cachedCornerEdges = cachedCornerEdges == null ? null : cachedCornerEdges.shared();
+        m.cachedTangents = cachedTangents == null ? null : cachedTangents.shared();
+        m.cachedBounds = cachedBounds == null ? null : cachedBounds.shared();
+        m.cachedFaceAabbs = cachedFaceAabbs == null ? null : cachedFaceAabbs.shared();
 
         return m;
     }
@@ -366,7 +425,10 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
     @Override
     public void close() {
-        discardAll();
-        mesh.close();
+        RuntimeException ex = ResourceUtils.closeDelayError(
+                cachedCornerNormals, cachedCornerEdges,
+                cachedTangents, cachedBounds, cachedFaceAabbs,
+                mesh);
+        if (ex != null) throw ex;
     }
 }

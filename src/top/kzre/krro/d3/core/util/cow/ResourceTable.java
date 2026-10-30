@@ -38,17 +38,17 @@ public final class ResourceTable<A extends CopyOnWrite<A>> implements CopyOnWrit
 
     public static <T extends CopyOnWrite<T>> ResourceTable<T> create() {
         return new ResourceTable<T>(
-                new CopyOnWriteObject<>(new ListResource<>()),
-                new CopyOnWriteObject<>(new LongIntMapResource(new LongIntMap())),
-                new CopyOnWriteObject<>(new IndexAllocatorResource(new IndexAllocator())));
+                new DefaultCopyOnWriteObject<>(new ListResource<>()),
+                new DefaultCopyOnWriteObject<>(new LongIntMapResource(new LongIntMap())),
+                new DefaultCopyOnWriteObject<>(new IndexAllocatorResource(new IndexAllocator())));
     }
 
     // ═══════════════════════════════════════════════
     // 访问
     // ═══════════════════════════════════════════════
 
-    public CopyOnWriteObject<ListResource<A>>        items()          { return items; }
-    public CopyOnWriteObject<LongIntMapResource>     indexMap()       { return indexMap; }
+    public CopyOnWriteObject<ListResource<A>> items()          { return items; }
+    public CopyOnWriteObject<LongIntMapResource> indexMap()       { return indexMap; }
     public CopyOnWriteObject<IndexAllocatorResource> indexAllocator() { return indexAllocator; }
 
     /** 按 id 查找。 */

@@ -193,20 +193,20 @@ public final class BMesh implements CopyOnWrite<BMesh> {
 
     private BMesh(
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> vertPositions,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   vertOutEdges,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> vertOutEdges,
 
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeEndpoints,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeLoops,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   edgeDiskRing,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeEndpoints,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeLoops,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> edgeDiskRing,
 
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> loopUvs,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopOwnership,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopRing,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopRadialRing,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> loopOwnership,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> loopRing,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> loopRadialRing,
 
             CopyOnWriteObject<ListResource<CopyOnWriteFloats>> faceNormals,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   faceSubmeshIds,
-            CopyOnWriteObject<ListResource<CopyOnWriteInts>>   faceTopology,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> faceSubmeshIds,
+            CopyOnWriteObject<ListResource<CopyOnWriteInts>> faceTopology,
 
             CopyOnWriteObject<SegmentizedIndexAllocatorResource> vertAllocator,
             CopyOnWriteObject<SegmentizedIndexAllocatorResource> edgeAllocator,
@@ -240,7 +240,7 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     // ═══════════════════════════════════════════════
 
     public CopyOnWriteObject<ListResource<CopyOnWriteFloats>> vertPositions() { return vertPositions; }
-    public CopyOnWriteObject<ListResource<CopyOnWriteInts>>   vertOutEdges()  { return vertOutEdges; }
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> vertOutEdges()  { return vertOutEdges; }
 
     // ═══════════════════════════════════════════════
     // 访问器——边
@@ -261,23 +261,23 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     public CopyOnWriteObject<ListResource<CopyOnWriteFloats>> loopUvs()         { return loopUvs; }
 
     /** 环归属——int3（vert, edge, face）——stride = 3。 */
-    public CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopOwnership()   { return loopOwnership; }
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> loopOwnership()   { return loopOwnership; }
 
     /** 面内链——int2（next, prev）——stride = 2。 */
-    public CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopRing()        { return loopRing; }
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> loopRing()        { return loopRing; }
 
     /** 径向链——int2（radial-next, radial-prev）——stride = 2。 */
-    public CopyOnWriteObject<ListResource<CopyOnWriteInts>>   loopRadialRing()  { return loopRadialRing; }
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> loopRadialRing()  { return loopRadialRing; }
 
     // ═══════════════════════════════════════════════
     // 访问器——面
     // ═══════════════════════════════════════════════
 
     public CopyOnWriteObject<ListResource<CopyOnWriteFloats>> faceNormals()    { return faceNormals; }
-    public CopyOnWriteObject<ListResource<CopyOnWriteInts>>   faceSubmeshIds() { return faceSubmeshIds; }
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> faceSubmeshIds() { return faceSubmeshIds; }
 
     /** 面拓扑——int2（loop, len）——stride = 2。 */
-    public CopyOnWriteObject<ListResource<CopyOnWriteInts>>   faceTopology()   { return faceTopology; }
+    public CopyOnWriteObject<ListResource<CopyOnWriteInts>> faceTopology()   { return faceTopology; }
 
     // ═══════════════════════════════════════════════
     // 访问器——分配器
@@ -293,11 +293,11 @@ public final class BMesh implements CopyOnWrite<BMesh> {
     // ═══════════════════════════════════════════════
 
     private static <T extends CopyOnWrite<T>> CopyOnWriteObject<ListResource<T>> emptyList() {
-        return new CopyOnWriteObject<>(new ListResource<>());
+        return new DefaultCopyOnWriteObject<>(new ListResource<>());
     }
 
     private static CopyOnWriteObject<SegmentizedIndexAllocatorResource> newAllocator(int segmentSize) {
-        return new CopyOnWriteObject<>(
+        return new DefaultCopyOnWriteObject<>(
                 new SegmentizedIndexAllocatorResource(new SegmentizedIndexAllocator(segmentSize)));
     }
 
