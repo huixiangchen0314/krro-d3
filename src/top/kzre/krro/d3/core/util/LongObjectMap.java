@@ -3,10 +3,10 @@ package top.kzre.krro.d3.core.util;
 import java.util.Arrays;
 
 /**
- * long → Object 原始类型哈希表——开放寻址——线性探测。
+ * long → Object 哈希表——开放寻址——线性探测——Robin Hood。
  *
- * <p><b>空槽约定</b>：value = {@code null} 表示空槽。
- * 因此不能存储 {@code null} 作为合法值。
+ * <p><b>空槽约定</b>：value = {@code null} 表示空槽，
+ * 不能存储 {@code null} 作为合法值。
  *
  * <p><b>复用</b>：{@link #ensureCapacity(int)} 保留数组容量——
  * 避免大数组反复分配进入老年代。配合 ThreadLocal 使用。
@@ -30,13 +30,21 @@ public final class LongObjectMap<V> {
     public LongObjectMap() { this(16); }
 
     public LongObjectMap(int expectedSize) {
-        int cap = 1;
-        while (cap < expectedSize * 2) cap <<= 1;   // 负载因子 0.5
+        int cap = RobinHoodHash.capacityFor(expectedSize);
         this.keys      = new long[cap];
-        this.values    = new Object[cap];
+        this.values    = new Object[cap];   // 默认 null 即空槽
         this.mask      = cap - 1;
-        this.threshold = cap / 2;
+        this.threshold = RobinHoodHash.thresholdFor(cap);
         this.size      = 0;
+    }
+
+    private LongObjectMap(long[] keys, Object[] values,
+                          int mask, int threshold, int size) {
+        this.keys      = keys;
+        this.values    = values;
+        this.mask      = mask;
+        this.threshold = threshold;
+        this.size      = size;
     }
 
     // ═══════════════════════════════════════════════
@@ -55,14 +63,12 @@ public final class LongObjectMap<V> {
      * 现有内容被清除。
      */
     public void ensureCapacity(int expected) {
-        int needed = 1;
-        while (needed < expected * 2) needed <<= 1;
-
+        int needed = RobinHoodHash.capacityFor(expected);
         if (keys.length < needed) {
             this.keys      = new long[needed];
             this.values    = new Object[needed];
             this.mask      = needed - 1;
-            this.threshold = needed / 2;
+            this.threshold = RobinHoodHash.thresholdFor(needed);
         }
         clear();
     }
@@ -73,10 +79,20 @@ public final class LongObjectMap<V> {
 
     @SuppressWarnings("unchecked")
     public V get(long key) {
-        int idx = hash(key) & mask;
+        int mask = this.mask;
+        int idx = RobinHoodHash.idealIndex(key, mask);
+        int dib = 0;
+
         while (values[idx] != null) {
             if (keys[idx] == key) return (V) values[idx];
-            idx = (idx + 1) & mask;
+
+            // Robin Hood 提前终止
+            int existingDib = RobinHoodHash.dib(
+                    idx, RobinHoodHash.idealIndex(keys[idx], mask), mask);
+            if (existingDib < dib) return null;
+
+            idx = RobinHoodHash.nextIndex(idx, mask);
+            dib++;
         }
         return null;
     }
@@ -88,10 +104,19 @@ public final class LongObjectMap<V> {
     }
 
     public boolean containsKey(long key) {
-        int idx = hash(key) & mask;
+        int mask = this.mask;
+        int idx = RobinHoodHash.idealIndex(key, mask);
+        int dib = 0;
+
         while (values[idx] != null) {
             if (keys[idx] == key) return true;
-            idx = (idx + 1) & mask;
+
+            int existingDib = RobinHoodHash.dib(
+                    idx, RobinHoodHash.idealIndex(keys[idx], mask), mask);
+            if (existingDib < dib) return false;
+
+            idx = RobinHoodHash.nextIndex(idx, mask);
+            dib++;
         }
         return false;
     }
@@ -101,66 +126,104 @@ public final class LongObjectMap<V> {
     // ═══════════════════════════════════════════════
 
     /** 返回旧值——key 原本不存在返回 null。 */
-    @SuppressWarnings("unchecked")
     public V put(long key, V value) {
         if (value == null) {
             throw new IllegalArgumentException("value must not be null");
         }
         if (size >= threshold) grow();
+        return insert(key, value);
+    }
 
-        int idx = hash(key) & mask;
-        while (values[idx] != null) {
-            if (keys[idx] == key) {
+    /**
+     * 不做扩容检查的插入——供 put 和 grow 复用。
+     */
+    @SuppressWarnings("unchecked")
+    private V insert(long key, V value) {
+        int mask = this.mask;
+        int idx = RobinHoodHash.idealIndex(key, mask);
+        long curKey = key;
+        V    curVal = value;
+        int  dib = 0;
+
+        while (true) {
+            if (values[idx] == null) {
+                keys[idx]   = curKey;
+                values[idx] = curVal;
+                size++;
+                return null;
+            }
+
+            if (keys[idx] == curKey) {
                 V old = (V) values[idx];
-                values[idx] = value;
+                values[idx] = curVal;
                 return old;
             }
-            idx = (idx + 1) & mask;
-        }
 
-        keys[idx]   = key;
-        values[idx] = value;
-        size++;
-        return null;
+            int existingDib = RobinHoodHash.dib(
+                    idx, RobinHoodHash.idealIndex(keys[idx], mask), mask);
+            if (existingDib < dib) {
+                // 抢富济贫：当前元素 DIB 更大，交换后继续向后推
+                long tk = keys[idx];
+                keys[idx] = curKey;
+                curKey = tk;
+
+                V tv = (V) values[idx];
+                values[idx] = curVal;
+                curVal = tv;
+
+                dib = existingDib;
+            }
+
+            idx = RobinHoodHash.nextIndex(idx, mask);
+            dib++;
+        }
     }
+
+    // ═══════════════════════════════════════════════
+    // 删除
+    // ═══════════════════════════════════════════════
 
     /** 删除——返回旧值——不存在返回 null。 */
     @SuppressWarnings("unchecked")
     public V remove(long key) {
-        int idx = hash(key) & mask;
+        int mask = this.mask;
+        int idx = RobinHoodHash.idealIndex(key, mask);
+        int dib = 0;
+
         while (values[idx] != null) {
             if (keys[idx] == key) {
-                Object oldValue = values[idx];
+                V oldValue = (V) values[idx];
                 backwardShiftDelete(idx);
                 size--;
-                return (V) oldValue;
+                return oldValue;
             }
-            idx = (idx + 1) & mask;
+
+            int existingDib = RobinHoodHash.dib(
+                    idx, RobinHoodHash.idealIndex(keys[idx], mask), mask);
+            if (existingDib < dib) return null;
+
+            idx = RobinHoodHash.nextIndex(idx, mask);
+            dib++;
         }
         return null;   // 不存在
     }
 
     private void backwardShiftDelete(int idx) {
+        int mask = this.mask;
         values[idx] = null;   // 先清空删除位置
 
         int hole = idx;
-        int next = (idx + 1) & mask;
+        int next = RobinHoodHash.nextIndex(idx, mask);
 
         while (values[next] != null) {
-            int ideal = hash(keys[next]) & mask;
+            if (!RobinHoodHash.canBackwardShift(keys[next], next, mask)) break;
 
-            // 环形区间判断：ideal 是否在 (hole, next) 内
-            boolean canMove = (hole < next)
-                    ? (ideal <= hole || ideal > next)   // 不环绕
-                    : (ideal <= hole && ideal > next);  // 环绕
+            keys[hole]   = keys[next];
+            values[hole] = values[next];
+            values[next] = null;
 
-            if (canMove) {
-                keys[hole]   = keys[next];
-                values[hole] = values[next];
-                values[next] = null;
-                hole = next;
-            }
-            next = (next + 1) & mask;
+            hole = next;
+            next = RobinHoodHash.nextIndex(next, mask);
         }
     }
 
@@ -173,12 +236,11 @@ public final class LongObjectMap<V> {
         void visit(long key, V value);
     }
 
+    @SuppressWarnings("unchecked")
     public void forEach(LongObjectVisitor<V> visitor) {
         for (int i = 0; i < values.length; i++) {
             if (values[i] != null) {
-                @SuppressWarnings("unchecked")
-                V v = (V) values[i];
-                visitor.visit(keys[i], v);
+                visitor.visit(keys[i], (V) values[i]);
             }
         }
     }
@@ -189,8 +251,7 @@ public final class LongObjectMap<V> {
 
     public int     size()    { return size; }
     public boolean isEmpty() { return size == 0; }
-
-    public int capacity() { return keys.length; }
+    public int     capacity() { return keys.length; }
 
     public void clear() {
         Arrays.fill(values, null);
@@ -205,32 +266,25 @@ public final class LongObjectMap<V> {
         long[]   oldKeys   = keys;
         Object[] oldValues = values;
 
-        int newCap = keys.length << 1;
+        int newCap = RobinHoodHash.growCapacity(keys.length);
         keys      = new long[newCap];
         values    = new Object[newCap];
         mask      = newCap - 1;
-        threshold = newCap / 2;
+        threshold = RobinHoodHash.thresholdFor(newCap);
         size      = 0;
 
         for (int i = 0; i < oldKeys.length; i++) {
             if (oldValues[i] != null) {
                 @SuppressWarnings("unchecked")
                 V v = (V) oldValues[i];
-                put(oldKeys[i], v);
+                insert(oldKeys[i], v);
             }
         }
     }
 
     // ═══════════════════════════════════════════════
-    // 哈希
+    // 复制
     // ═══════════════════════════════════════════════
-
-    private static int hash(long x) {
-        x = (x ^ (x >>> 33)) * 0xff51afd7ed558ccdL;
-        x = (x ^ (x >>> 33)) * 0xc4ceb9fe1a85ec53L;
-        x = (x ^ (x >>> 33));
-        return (int) x;
-    }
 
     /**
      * 复制——返回一个独立的新实例。
@@ -239,15 +293,11 @@ public final class LongObjectMap<V> {
      * 新旧 map 共享同一批 value。
      */
     public LongObjectMap<V> copy() {
-        LongObjectMap<V> dst = new LongObjectMap<>();
-        dst.keys      = new long[this.keys.length];
-        dst.values    = new Object[this.values.length];
-        dst.mask      = this.mask;
-        dst.threshold = this.threshold;
-        dst.size      = this.size;
-
-        System.arraycopy(this.keys,   0, dst.keys,   0, this.keys.length);
-        System.arraycopy(this.values, 0, dst.values, 0, this.values.length);
-        return dst;
+        int n = this.keys.length;
+        long[]   newKeys   = new long[n];
+        Object[] newValues = new Object[n];
+        System.arraycopy(this.keys,   0, newKeys,   0, n);
+        System.arraycopy(this.values, 0, newValues, 0, n);
+        return new LongObjectMap<>(newKeys, newValues, this.mask, this.threshold, this.size);
     }
 }
