@@ -15,4 +15,6 @@ public interface CopyOnWriteInts extends CopyOnWrite<CopyOnWriteInts> {
     // ── 写 ──
     int[] getIntsForWrite();
     IntBuffer getIntBufferForWrite();
+
+    long intOffset();
 }

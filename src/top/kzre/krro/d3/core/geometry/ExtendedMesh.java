@@ -135,8 +135,11 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // Mesh 访问
     // ═══════════════════════════════════════════════
 
-    public Mesh sharedMesh() {
-        return mesh.shared();
+    /**
+     * 直接暴露，不需要share
+     */
+    public Mesh mesh(){
+        return mesh;
     }
 
     public long vertCount() {

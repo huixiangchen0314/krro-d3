@@ -5,6 +5,7 @@ import java.nio.FloatBuffer;
 public interface CopyOnWriteFloats
         extends CopyOnWrite<CopyOnWriteFloats> {
     long offset();
+    long floatOffset();
     long count();
     // 读
     float[] getFloatsSnapshot();
@@ -13,4 +14,6 @@ public interface CopyOnWriteFloats
     // 写
     float[] getFloatsForWrite();
     FloatBuffer getFloatBufferForWrite();
+
+
 }

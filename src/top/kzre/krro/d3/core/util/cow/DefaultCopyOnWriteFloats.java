@@ -82,6 +82,14 @@ public final class DefaultCopyOnWriteFloats implements CopyOnWriteFloats {
         }
     }
 
+    @Override
+    public long floatOffset() {
+        synchronized (lock) {
+            ensureWritableLocked();
+            return data.floatOffset();
+        }
+    }
+
     private void ensureWritableLocked() {
         if (data.refCount() > 1) {
             AllocateResult<FloatArenaView> r = data.copy();

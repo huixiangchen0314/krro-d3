@@ -64,6 +64,13 @@ public final class DefaultCopyOnWriteInts implements CopyOnWriteInts {
         }
     }
 
+    @Override
+    public long intOffset() {
+        synchronized (lock) {
+            return data.intOffset();
+        }
+    }
+
     private void ensureWritableLocked() {
         if (data.refCount() > 1) {
             AllocateResult<IntArenaView> r = data.copy();

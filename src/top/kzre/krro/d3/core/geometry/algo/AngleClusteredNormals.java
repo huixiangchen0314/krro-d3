@@ -47,7 +47,7 @@ public final class AngleClusteredNormals {
         int[]   faceOffsets = mesh.faceOffsets().getIntsSnapshot();
         float[] positions   = mesh.positions().getFloatsSnapshot();
 
-        int posStart    = (int) (mesh.positions().offset() / Float.BYTES);
+        int posStart    = (int) mesh.positions().floatOffset();
         int vertCount   = (int) mesh.vertCount();
         int faceCount   = (int) mesh.faceCount();
         int cornerCount = (int) mesh.cornerCount();
