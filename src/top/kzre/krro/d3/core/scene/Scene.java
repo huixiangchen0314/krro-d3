@@ -21,25 +21,39 @@ import top.kzre.krro.d3.core.util.cow.*;
  */
 public final class Scene implements CopyOnWrite<Scene> {
     private final long sceneId;
-    /** 根节点 id 列表 */
+    /**
+     * 根节点 id 列表
+     */
     private final CopyOnWriteObject<LongListResource> roots;
 
-    /** 父 → 首子 */
+    /**
+     * 父 → 首子
+     */
     private final CopyOnWriteObject<LongLongMapResource> firstChild;
 
-    /** 子 → 父 */
+    /**
+     * 子 → 父
+     */
     private final CopyOnWriteObject<LongLongMapResource> parent;
 
-    /** 节点 → 下个兄弟 */
+    /**
+     * 节点 → 下个兄弟
+     */
     private final CopyOnWriteObject<LongLongMapResource> nextSibling;
 
-    /** 节点 → 上个兄弟 */
+    /**
+     * 节点 → 上个兄弟
+     */
     private final CopyOnWriteObject<LongLongMapResource> prevSibling;
 
-    /** id → SceneObject */
+    /**
+     * id → SceneObject
+     */
     private final CopyOnWriteObject<LongObjectMapResource<SceneObject>> objects;
 
-    /** id → mat4（局部变换） */
+    /**
+     * id → mat4（局部变换）
+     */
     private final CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms;
 
     public Scene(
@@ -51,23 +65,46 @@ public final class Scene implements CopyOnWrite<Scene> {
             CopyOnWriteObject<LongObjectMapResource<SceneObject>> objects,
             CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms) {
         this.sceneId = sceneId;
-        this.roots       = roots;
-        this.firstChild  = firstChild;
-        this.parent      = parent;
+        this.roots = roots;
+        this.firstChild = firstChild;
+        this.parent = parent;
         this.nextSibling = nextSibling;
         this.prevSibling = prevSibling;
-        this.objects     = objects;
-        this.transforms  = transforms;
+        this.objects = objects;
+        this.transforms = transforms;
     }
-    public long sceneId() { return sceneId; }
 
-    public CopyOnWriteObject<LongListResource> roots() { return roots; }
-    public CopyOnWriteObject<LongLongMapResource> firstChild()  { return firstChild; }
-    public CopyOnWriteObject<LongLongMapResource> parent()      { return parent; }
-    public CopyOnWriteObject<LongLongMapResource> nextSibling() { return nextSibling; }
-    public CopyOnWriteObject<LongLongMapResource> prevSibling() { return prevSibling; }
-    public CopyOnWriteObject<LongObjectMapResource<SceneObject>> objects() { return objects; }
-    public CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms() { return transforms; }
+    public long sceneId() {
+        return sceneId;
+    }
+
+    public CopyOnWriteObject<LongListResource> roots() {
+        return roots;
+    }
+
+    public CopyOnWriteObject<LongLongMapResource> firstChild() {
+        return firstChild;
+    }
+
+    public CopyOnWriteObject<LongLongMapResource> parent() {
+        return parent;
+    }
+
+    public CopyOnWriteObject<LongLongMapResource> nextSibling() {
+        return nextSibling;
+    }
+
+    public CopyOnWriteObject<LongLongMapResource> prevSibling() {
+        return prevSibling;
+    }
+
+    public CopyOnWriteObject<LongObjectMapResource<SceneObject>> objects() {
+        return objects;
+    }
+
+    public CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms() {
+        return transforms;
+    }
 
     @Override
     public Scene shared() {

@@ -1,10 +1,8 @@
 package top.kzre.krro.d3.core.util;
 
-/**
- * 自动扩容的 long 累加器。
- *
- * <p><b>非线程安全</b>。
- */
+import java.util.NoSuchElementException;
+import java.util.function.LongConsumer;
+
 public final class LongList extends DynamicList {
 
     private static final int DEFAULT_CAPACITY = 64;
@@ -58,5 +56,88 @@ public final class LongList extends DynamicList {
         long[] out = new long[sizeValue()];
         System.arraycopy(data, 0, out, 0, sizeValue());
         return out;
+    }
+
+    /**
+     * 删除指定位置的元素——后续元素前移一位。
+     *
+     * @param i 索引，{@code [0, size)}
+     * @return 被删除的值
+     * @throws IndexOutOfBoundsException i 越界
+     */
+    public long removeAt(int i) {
+        checkIndex(i);
+        long removed = data[i];
+        int n = sizeValue();
+        int move = n - i - 1;
+        if (move > 0) {
+            System.arraycopy(data, i + 1, data, i, move);
+        }
+        setSize(n - 1);
+        return removed;
+    }
+
+    // ═══════════════════════════════════════════════
+    // 遍历——无装箱
+    // ═══════════════════════════════════════════════
+
+    /**
+     * 遍历所有元素——无装箱。
+     *
+     * <p>用 {@link LongConsumer} 而不是 {@code Iterable<Long>}——
+     * for-each 需要装箱，和项目“long 不装箱”原则冲突。
+     *
+     * <p>示例：
+     * <pre>
+     *   list.forEach(id -> process(id));
+     * </pre>
+     *
+     * @param action 每个元素调一次，非 null
+     */
+    public void forEach(LongConsumer action) {
+        if (action == null) throw new NullPointerException("action");
+        int n = sizeValue();
+        for (int i = 0; i < n; i++) {
+            action.accept(data[i]);
+        }
+    }
+
+    /**
+     * 返回游标——支持 {@code while} 循环遍历，无装箱。
+     *
+     * <p>示例：
+     * <pre>
+     *   LongList.LongCursor c = list.cursor();
+     *   while (c.hasNext()) {
+     *       long v = c.next();
+     *       ...
+     *   }
+     * </pre>
+     *
+     * <p><b>非线程安全</b>：游标读取的是当前列表状态，列表在遍历中
+     * 修改时行为未定义。
+     */
+    public LongCursor cursor() {
+        return new LongCursor(sizeValue());
+    }
+
+    /** 无装箱游标。 */
+    public final class LongCursor {
+
+        private final int limit;
+        private int idx = 0;
+
+        private LongCursor(int limit) {
+            this.limit = limit;
+        }
+
+        public boolean hasNext() { return idx < limit; }
+
+        public long next() {
+            if (idx >= limit) {
+                throw new NoSuchElementException("cursor exhausted");
+            }
+            return data[idx++];
+        }
     }
 }

@@ -130,25 +130,38 @@ public final class LongObjectMap<V> {
         int idx = hash(key) & mask;
         while (values[idx] != null) {
             if (keys[idx] == key) {
-                V old = (V) values[idx];
-                values[idx] = null;
+                Object oldValue = values[idx];
+                backwardShiftDelete(idx);
                 size--;
-
-                // 重建后续连续段——避免探测链断裂
-                int next = (idx + 1) & mask;
-                while (values[next] != null) {
-                    long k = keys[next];
-                    Object v = values[next];
-                    values[next] = null;
-                    size--;
-                    put(k, (V) v);
-                    next = (next + 1) & mask;
-                }
-                return old;
+                return (V) oldValue;
             }
             idx = (idx + 1) & mask;
         }
-        return null;
+        return null;   // 不存在
+    }
+
+    private void backwardShiftDelete(int idx) {
+        values[idx] = null;   // 先清空删除位置
+
+        int hole = idx;
+        int next = (idx + 1) & mask;
+
+        while (values[next] != null) {
+            int ideal = hash(keys[next]) & mask;
+
+            // 环形区间判断：ideal 是否在 (hole, next) 内
+            boolean canMove = (hole < next)
+                    ? (ideal <= hole || ideal > next)   // 不环绕
+                    : (ideal <= hole && ideal > next);  // 环绕
+
+            if (canMove) {
+                keys[hole]   = keys[next];
+                values[hole] = values[next];
+                values[next] = null;
+                hole = next;
+            }
+            next = (next + 1) & mask;
+        }
     }
 
     // ═══════════════════════════════════════════════

@@ -62,7 +62,6 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     /**
      * 平滑角度阈值——弧度——用于面角法线计算。
      *
-     * <p>来自编辑器配置——不是硬编码默认。
      */
     private float smoothAngleRadians;
 

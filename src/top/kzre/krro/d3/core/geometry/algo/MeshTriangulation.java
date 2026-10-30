@@ -90,6 +90,7 @@ public final class MeshTriangulation {
             if (n < 3) continue;
 
             int c0 = cornerVerts[cvBase + start];
+            // 简化，按相邻顶点切分
             for (int i = 1; i < n - 1; i++) {
                 int c1 = cornerVerts[cvBase + start + i];
                 int c2 = cornerVerts[cvBase + start + i + 1];
