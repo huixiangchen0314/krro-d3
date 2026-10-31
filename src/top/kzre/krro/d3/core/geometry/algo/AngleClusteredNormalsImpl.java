@@ -1,6 +1,7 @@
 package top.kzre.krro.d3.core.geometry.algo;
 
-import top.kzre.krro.d3.core.geometry.Mesh;
+import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
+import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
 
 /**
  * 面角法线——角度阈值 + 并查集聚类。
@@ -13,17 +14,18 @@ import top.kzre.krro.d3.core.geometry.Mesh;
  *   <li>按连通分量累加面法线——归一化</li>
  * </ol>
  *
- * <p><b>输出</b>：float3[ncorners]。
+ * <p><b>输出</b>：{@code float3[ncorners]}——直接写 {@code out} 的底层数组。
  *
- * <p><b>复用</b>：结果长度 = cornerCount × 3——允许外部传入。
+ * <p><b>写入方式</b>：按顶点遍历，写入顺序不是 corner 顺序——用绝对位置写
+ * {@code o[oOff + ci * 3] = ...}。不碰 {@code FloatBuffer}。
+ *
+ * <p><b>edgeEndpoints</b>：当前全对比较实现忽略此参数——为后续
+ * “边邻接并查集”预留。传 null 或非 null 都不影响当前行为。
+ *
+ * <p><b>线程契约</b>：只读 {@code positions} / {@code cornerVerts} /
+ * {@code faceOffsets}，写 {@code out}。内部 ThreadLocal 缓冲按线程隔离。
  */
-public final class AngleClusteredNormals {
-
-    private AngleClusteredNormals() {}
-
-    public static int length(Mesh mesh) {
-        return (int) (mesh.cornerCount() * 3);
-    }
+public final class AngleClusteredNormalsImpl implements CornerNormalsAlgo {
 
     // ── ThreadLocal 复用缓冲 ──
 
@@ -36,59 +38,91 @@ public final class AngleClusteredNormals {
     private static final ThreadLocal<int[]>   CORNER_FACE =
             ThreadLocal.withInitial(() -> new int[1024]);
 
-    // ── 入口 ──
+    public AngleClusteredNormalsImpl() {}
 
-    public static float[] compute(Mesh mesh, float angleThresholdRadians) {
-        return compute(mesh, angleThresholdRadians, new float[length(mesh)]);
-    }
+    @Override
+    public void compute(CopyOnWriteFloats positions,
+                        CopyOnWriteInts cornerVerts,
+                        CopyOnWriteInts faceOffsets,
+                        CopyOnWriteInts edgeEndpoints,
+                        float angleThresholdRadians,
+                        CopyOnWriteFloats out) {
+        if (positions == null)   throw new NullPointerException("positions");
+        if (cornerVerts == null) throw new NullPointerException("cornerVerts");
+        if (faceOffsets == null) throw new NullPointerException("faceOffsets");
+        if (out == null)         throw new NullPointerException("out");
+        if (angleThresholdRadians < 0f) {
+            throw new IllegalArgumentException(
+                    "angleThresholdRadians must be >= 0, got " + angleThresholdRadians);
+        }
 
-    public static float[] compute(Mesh mesh, float angleThresholdRadians, float[] out) {
-        int[]   cornerVerts = mesh.cornerVerts().getIntsSnapshot();
-        int[]   faceOffsets = mesh.faceOffsets().getIntsSnapshot();
-        float[] positions   = mesh.positions().getFloatsSnapshot();
+        long posCount = positions.count();
+        if (posCount % 3 != 0) {
+            throw new IllegalArgumentException(
+                    "positions count must be multiple of 3, got " + posCount);
+        }
 
-        int posStart    = (int) mesh.positions().floatOffset();
-        int vertCount   = (int) mesh.vertCount();
-        int faceCount   = (int) mesh.faceCount();
-        int cornerCount = (int) mesh.cornerCount();
+        long cornerCount = cornerVerts.count();
+        long needed      = cornerCount * 3L;
+        if (out.count() < needed) {
+            throw new IllegalArgumentException(
+                    "out needs " + needed + " floats, has " + out.count());
+        }
 
-        if (cornerCount == 0) return out;
+        if (cornerCount == 0) return;
+
+        // ── 读 ──
+        float[] pos    = positions.getFloatsSnapshot();
+        int     pOff   = (int) positions.floatOffset();
+        int[]   cv     = cornerVerts.getIntsSnapshot();
+        int     cvOff  = (int) cornerVerts.intOffset();
+        int[]   fo     = faceOffsets.getIntsSnapshot();
+        int     foOff  = (int) faceOffsets.intOffset();
+
+        int ncorners  = (int) cornerCount;
+        int faceCount = (int) faceOffsets.count() - 1;
+        int vertCount = (int) (posCount / 3);
+
+        // ── 写——先 ForWrite，再取 offset ──
+        float[] o    = out.getFloatsForWrite();
+        int     oOff = (int) out.floatOffset();
 
         // ── 1. 面法线 ──
         float[] faceNormals = getFaceNormalsBuffer(faceCount * 3);
-        computeFaceNormals(faceOffsets, cornerVerts, positions, posStart,
-                faceCount, faceNormals);
+        computeFaceNormals(fo, foOff, cv, cvOff, pos, pOff, faceCount, faceNormals);
 
         // ── 2. 角 → 面 ──
-        int[] cornerFace = getCornerFaceBuffer(cornerCount);
+        int[] cornerFace = getCornerFaceBuffer(ncorners);
         for (int f = 0; f < faceCount; f++) {
-            int start = faceOffsets[f];
-            int end   = faceOffsets[f + 1];
+            int start = fo[foOff + f];
+            int end   = fo[foOff + f + 1];
             for (int c = start; c < end; c++) cornerFace[c] = f;
         }
 
         // ── 3. 顶点 → 角列表（CSR）──
         int[] vertCornerCount = new int[vertCount];
-        for (int c = 0; c < cornerCount; c++) vertCornerCount[cornerVerts[c]]++;
+        for (int c = 0; c < ncorners; c++) {
+            vertCornerCount[cv[cvOff + c]]++;
+        }
 
         int[] vertCornerOffset = new int[vertCount + 1];
         for (int v = 0; v < vertCount; v++) {
             vertCornerOffset[v + 1] = vertCornerOffset[v] + vertCornerCount[v];
         }
 
-        int[] vertCorners = new int[cornerCount];
+        int[] vertCorners = new int[ncorners];
         int[] writePos    = new int[vertCount];
         System.arraycopy(vertCornerOffset, 0, writePos, 0, vertCount);
-        for (int c = 0; c < cornerCount; c++) {
-            int v = cornerVerts[c];
+        for (int c = 0; c < ncorners; c++) {
+            int v = cv[cvOff + c];
             vertCorners[writePos[v]++] = c;
         }
 
         // ── 4. 聚类 + 累加 ──
         float cosThreshold = (float) Math.cos(angleThresholdRadians);
 
-        int[]   parent = getUnionParentBuffer(cornerCount);
-        float[] accum  = getUnionAccumBuffer(cornerCount * 3);
+        int[]   parent = getUnionParentBuffer(ncorners);
+        float[] accum  = getUnionAccumBuffer(ncorners * 3);
 
         for (int v = 0; v < vertCount; v++) {
             int start = vertCornerOffset[v];
@@ -98,11 +132,12 @@ public final class AngleClusteredNormals {
 
             // 单角——直接用面法线
             if (k == 1) {
-                int c = vertCorners[start];
-                int f = cornerFace[c];
-                out[c * 3]     = faceNormals[f * 3];
-                out[c * 3 + 1] = faceNormals[f * 3 + 1];
-                out[c * 3 + 2] = faceNormals[f * 3 + 2];
+                int c  = vertCorners[start];
+                int f  = cornerFace[c];
+                int cb = oOff + c * 3;
+                o[cb]     = faceNormals[f * 3];
+                o[cb + 1] = faceNormals[f * 3 + 1];
+                o[cb + 2] = faceNormals[f * 3 + 2];
                 continue;
             }
 
@@ -170,17 +205,16 @@ public final class AngleClusteredNormals {
                 }
             }
 
-            // 赋给角
+            // 赋给角——直接写底层数组
             for (int i = 0; i < k; i++) {
                 int ci   = vertCorners[start + i];
                 int root = parent[i];
-                out[ci * 3]     = accum[root * 3];
-                out[ci * 3 + 1] = accum[root * 3 + 1];
-                out[ci * 3 + 2] = accum[root * 3 + 2];
+                int cb   = oOff + ci * 3;
+                o[cb]     = accum[root * 3];
+                o[cb + 1] = accum[root * 3 + 1];
+                o[cb + 2] = accum[root * 3 + 2];
             }
         }
-
-        return out;
     }
 
     // ── ThreadLocal 增长 ──
@@ -222,16 +256,15 @@ public final class AngleClusteredNormals {
     // ── Newell 面法线 ──
 
     private static void computeFaceNormals(
-            int[]   faceOffsets,
-            int[]   cornerVerts,
-            float[] positions,
-            int     posStart,
+            int[]   faceOffsets, int foOff,
+            int[]   cornerVerts, int cvOff,
+            float[] positions,   int pOff,
             int     faceCount,
             float[] out) {
 
         for (int f = 0; f < faceCount; f++) {
-            int start = faceOffsets[f];
-            int end   = faceOffsets[f + 1];
+            int start = faceOffsets[foOff + f];
+            int end   = faceOffsets[foOff + f + 1];
             int n     = end - start;
 
             if (n < 3) {
@@ -244,11 +277,11 @@ public final class AngleClusteredNormals {
             float nx = 0f, ny = 0f, nz = 0f;
 
             for (int i = 0; i < n; i++) {
-                int vCurr = cornerVerts[start + i];
-                int vNext = cornerVerts[start + (i + 1) % n];
+                int vCurr = cornerVerts[cvOff + start + i];
+                int vNext = cornerVerts[cvOff + start + (i + 1) % n];
 
-                int bCurr = posStart + vCurr * 3;
-                int bNext = posStart + vNext * 3;
+                int bCurr = pOff + vCurr * 3;
+                int bNext = pOff + vNext * 3;
 
                 float x0 = positions[bCurr];
                 float y0 = positions[bCurr + 1];
