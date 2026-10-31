@@ -23,6 +23,7 @@ public final class FaceAabbScanImpl implements FaceAabbAlgo {
 
     public FaceAabbScanImpl() {}
 
+    // TODO 直接查 边角->边缓存
     @Override
     public void compute(CopyOnWriteFloats positions,
                         CopyOnWriteInts cornerVerts,

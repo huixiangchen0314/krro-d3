@@ -59,6 +59,7 @@ public final class CornerEdgeLookupImpl implements CornerEdgeLookupAlgo {
         // ── 构建 edgeMap——v0 < v1 规范化 ──
         LongIntMap edgeMap = EDGE_MAP.get();
         edgeMap.ensureCapacity(nedges);
+        // TODO 过大的不保留，以及用户要保证总是在计算线程支持，不要随机线程执行
 
         for (int e = 0; e < nedges; e++) {
             int  v0  = ee[eeOff + e * 2];

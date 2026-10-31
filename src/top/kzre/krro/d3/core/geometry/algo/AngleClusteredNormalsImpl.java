@@ -25,6 +25,7 @@ import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
  * <p><b>线程契约</b>：只读 {@code positions} / {@code cornerVerts} /
  * {@code faceOffsets}，写 {@code out}。内部 ThreadLocal 缓冲按线程隔离。
  */
+@Deprecated
 public final class AngleClusteredNormalsImpl implements CornerNormalsAlgo {
 
     // ── ThreadLocal 复用缓冲 ──
@@ -38,7 +39,7 @@ public final class AngleClusteredNormalsImpl implements CornerNormalsAlgo {
     private static final ThreadLocal<int[]>   CORNER_FACE =
             ThreadLocal.withInitial(() -> new int[1024]);
 
-    public AngleClusteredNormalsImpl() {}
+    private AngleClusteredNormalsImpl() {}
 
     @Override
     public void compute(CopyOnWriteFloats positions,

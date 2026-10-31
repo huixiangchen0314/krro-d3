@@ -24,9 +24,10 @@ import java.nio.FloatBuffer;
  * {@code float3[ntri * 3]}。不走 {@link TriangulationAlgo} 接口——
  * 它不是 corner 索引输出。
  */
+@Deprecated
 public final class FanTriangulationImpl implements TriangulationAlgo {
 
-    public FanTriangulationImpl() {}
+    private FanTriangulationImpl() {}
 
     /**
      * fan 三角化，输出 corner 索引到 {@code out}。

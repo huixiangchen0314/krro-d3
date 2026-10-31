@@ -356,33 +356,6 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     }
 
     // ═══════════════════════════════════════════════
-    // 分配——走 AutoGrow Template
-    // ═══════════════════════════════════════════════
-
-    /**
-     * 分配 + 拷贝已有数组。
-     *
-     * <p>只给"算法还返回 {@code float[]}"的过渡路径用——当前仅
-     * {@link #getCornerNormals()}。等 {@link AngleClusteredNormalsImpl} 改成
-     * view 输出后删除。
-     */
-    private CopyOnWriteFloats allocateFloats(float[] data) {
-        int byteSize = data.length * Float.BYTES;
-
-        AllocateResult<FloatArenaView> r = floatTemplate.allocate(byteSize);
-
-        if (r.isFailure()) {
-            throw new IllegalStateException(
-                    "AutoGrow float allocation failed unexpectedly: "
-                            + byteSize + " bytes");
-        }
-
-        FloatArenaView view = r.getView();
-        view.floatBuffer().put(data);
-        return new DefaultCopyOnWriteFloats(view);
-    }
-
-    // ═══════════════════════════════════════════════
     // 丢弃派生
     // ═══════════════════════════════════════════════
 
