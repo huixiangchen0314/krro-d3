@@ -37,7 +37,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     private final TriangulationAlgo triangulation = new MikkTriangulationImpl();
     private final FaceAabbAlgo faceAabbs = new FaceAabbScanImpl();
     private final CornerEdgeLookupAlgo cornerEdgeLookup = new CornerEdgeLookupImpl();
-    private final CornerNormalsAlgo cornerNormals = new AngleClusteredNormalsImpl();
+    private final CornerNormalsAlgo cornerNormals = new EdgeAdjacentNormalsImpl();
     private final TangentAlgo tangents = new WeldedMikkTangentsImpl();
     // ═══════════════════════════════════════════════
     // 字段

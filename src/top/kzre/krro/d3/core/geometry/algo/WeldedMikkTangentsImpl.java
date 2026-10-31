@@ -119,6 +119,7 @@ public final class WeldedMikkTangentsImpl implements TangentAlgo {
         float[] groupTan1 = new float[groupCount * 3];
         float[] groupTan2 = new float[groupCount * 3];
 
+        // TODO 并行加速
         for (int t = 0; t < ntri; t++) {
             int ti = triOff + t * 3;
             int c0 = tri[ti];
@@ -128,7 +129,7 @@ public final class WeldedMikkTangentsImpl implements TangentAlgo {
                     pos, pOff, cv, cvOff, uv, uvOff,
                     groupIdOfCorner, groupTan1, groupTan2);
         }
-
+        // TODO 并行加速
         // ── 4. 归一化 group ──
         for (int g = 0; g < groupCount; g++) {
             float sx = groupTan1[g * 3];
@@ -153,7 +154,7 @@ public final class WeldedMikkTangentsImpl implements TangentAlgo {
                 groupTan2[g * 3 + 2] = tz * inv;
             }
         }
-
+        // TODO 并行加速
         // ── 5. 输出——逐 corner 从 group 取切线，正交化，手性 ──
         float[] o    = out.getFloatsForWrite();
         int     oOff = (int) out.floatOffset();
