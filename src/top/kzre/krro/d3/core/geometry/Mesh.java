@@ -125,7 +125,11 @@ public final class Mesh implements CopyOnWrite<Mesh> {
 
     /** 便捷——UV0 通道。 */
     public CopyOnWriteFloats cornerUv0() {
-        return cornerUvs.getSnapshot().getList().get(0);
+        List<CopyOnWriteFloats> uvs = cornerUvs.getSnapshot().getList();
+        if (uvs.isEmpty()) {
+            return null;
+        }
+        return uvs.getFirst();
     }
 
     // ═══════════════════════════════════════════════

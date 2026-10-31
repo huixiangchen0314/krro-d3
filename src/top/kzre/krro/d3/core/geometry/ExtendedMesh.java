@@ -7,7 +7,6 @@ import top.kzre.krro.util.arena.*;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-import java.util.List;
 
 /**
  * <p><b>派生数据</b>（全部走 COW + Arena）：
@@ -35,11 +34,11 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // 算法
     private final MinMaxScanAlgo minMaxScan = new MinMaxScanImpl();
     private final CornerPositionGatherAlgo cornerPositionGather = new CornerPositionGatherImpl();
-    private final TriangulationAlgo triangulation = new FanTriangulationImpl();
+    private final TriangulationAlgo triangulation = new MikkTriangulationImpl();
     private final FaceAabbAlgo faceAabbs = new FaceAabbScanImpl();
     private final CornerEdgeLookupAlgo cornerEdgeLookup = new CornerEdgeLookupImpl();
     private final CornerNormalsAlgo cornerNormals = new AngleClusteredNormalsImpl();
-    private final TangentAlgo tangents = new MikkTSpaceTangentsImpl();
+    private final TangentAlgo tangents = new WeldedMikkTangentsImpl();
     // ═══════════════════════════════════════════════
     // 字段
     // ═══════════════════════════════════════════════
@@ -306,22 +305,23 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
         CopyOnWriteFloats c = cachedTangents;
         if (c != null) return c;
 
-        CopyOnWriteFloats normals = getCornerNormals();   // 依赖——先算
-        CopyOnWriteFloats out = allocateFloats(tangents.count(mesh.cornerVerts()));
-        List<CopyOnWriteFloats> uvs = mesh.cornerUvs().getSnapshot().getList();
-        // 用 UV0, UV 可能没展开, 先不管
-        CopyOnWriteFloats uv0;
-        if (uvs.isEmpty()) {
-            uv0 = null;
-        }else {
-            uv0 = uvs.getFirst();
+        CopyOnWriteFloats uv0 = mesh.cornerUv0();
+        if (uv0 == null) {
+            throw new IllegalStateException(
+                    "tangents require UV0; mesh has no UV set. "
+                            + "Generate a default UV set before requesting tangents.");
         }
+
+        CopyOnWriteFloats normals    = getCornerNormals();
+        CopyOnWriteInts   triIndices = getTriangleIndices();   // ← 复用渲染三角化
+        CopyOnWriteFloats out = allocateFloats(tangents.count(mesh.cornerVerts()));
         tangents.compute(
                 mesh.positions(), mesh.cornerVerts(), mesh.faceOffsets(),
-                uv0, normals, out);
+                uv0, normals, triIndices, out);
         cachedTangents = out;
         return cachedTangents;
     }
+
 
     /**
      * 包围盒。float[6] = [minX, minY, minZ, maxX, maxY, maxZ]。
