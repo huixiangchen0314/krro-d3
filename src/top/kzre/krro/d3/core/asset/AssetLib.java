@@ -41,7 +41,7 @@ public final class AssetLib implements CopyOnWrite<AssetLib> {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         RuntimeException ex = ResourceUtils.closeDelayError(meshes);
         if (ex != null) throw ex;
     }

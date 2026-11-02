@@ -81,7 +81,7 @@ public final class ResourceTable<A extends CopyOnWrite<A>> implements CopyOnWrit
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         RuntimeException ex = ResourceUtils.closeDelayError(items, indexMap, indexAllocator);
         if (ex != null) throw ex;
     }

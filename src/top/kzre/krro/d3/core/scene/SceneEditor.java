@@ -11,6 +11,8 @@ import top.kzre.krro.util.arena.FloatArenaView;
 import top.kzre.krro.util.arena.AllocateResult;
 import top.kzre.krro.util.math.KMath;
 
+import java.util.List;
+
 /**
  * 场景编辑器——编辑操作 + 派生缓存 + 脏标记。
  *
@@ -27,11 +29,16 @@ import top.kzre.krro.util.math.KMath;
  * <p><b>惰性</b>：编辑时不立即重算，{@link #preTransforms()} 时才
  * flush 脏子树——批量编辑后只重算一次。
  *
+ * <p><b>删除语义</b>：{@link #removeNode} 从 Scene 中移除节点及其
+ * 子树，返回被移除的 {@link SceneObject} 列表——<b>由调用者决定如何释放</b>
+ * （close、迁移到其他场景、暂存到撤销栈，等）。编辑器内部只清理自己的
+ * 缓存（{@code transforms} / {@code preTransforms} 等），不 close
+ * 用户的 {@code SceneObject}。
+ *
  * <p><b>线程契约</b>：非线程安全。多线程通过 {@link #shared()} 获取
  * 副本，各自的脏标记独立。
  */
 public final class SceneEditor implements CopyOnWrite<SceneEditor> {
-
     private static final float[] MAT4_IDENTITY = KMath.mat4Identity();
 
     /** 脏标记占位值——{@code LongObjectMap} 不允许 null value。 */
@@ -104,13 +111,42 @@ public final class SceneEditor implements CopyOnWrite<SceneEditor> {
         markDirty(nodeId);
     }
 
+    public void addRoot(SceneObject obj) {
+        addRoot(obj, MAT4_IDENTITY);
+    }
+
+    public void addRoot(SceneObject obj, float[] mat4) {
+        addOrphanNode(obj);
+
+        long objId = obj.getId();
+        assocRoot(objId, mat4);
+    }
+
+    public void addChild(long parentId, SceneObject obj, float[] mat4) {
+        addOrphanNode(obj);
+        // TODO 异常处理
+        long objId = obj.getId();
+        assocChild(parentId, objId, mat4);
+    }
+
+    private void addOrphanNode(SceneObject obj) {
+        long objId = obj.getId();
+        LongObjectMap<SceneObject> map = scene.objects().getForWrite().getMap();
+
+        SceneObject sceneObject = map.get(objId);
+        if (sceneObject != null) {
+            throw new IllegalStateException("Scene object already exists: " + objId);
+        }
+        map.put(objId, obj);
+    }
+
     /**
      * 添加根节点。
      *
      * @param nodeId 节点 id
      * @param mat4   列主序 4x4 局部变换，长度 16
      */
-    public void addRoot(long nodeId, float[] mat4) {
+    private void assocRoot(long nodeId, float[] mat4) {
         if (mat4 == null || mat4.length != 16) {
             throw new IllegalArgumentException("mat4 must be float[16]");
         }
@@ -129,7 +165,7 @@ public final class SceneEditor implements CopyOnWrite<SceneEditor> {
      * @param childId  子节点 id
      * @param mat4     子节点的列主序 4x4 局部变换，长度 16
      */
-    public void addChild(long parentId, long childId, float[] mat4) {
+    private void assocChild(long parentId, long childId, float[] mat4) {
         if (mat4 == null || mat4.length != 16) {
             throw new IllegalArgumentException("mat4 must be float[16]");
         }
@@ -164,21 +200,69 @@ public final class SceneEditor implements CopyOnWrite<SceneEditor> {
     /**
      * 删除节点及其子树。
      *
-     * <p>从 Scene 中移除节点、它的所有子孙、以及对应的全局变换缓存。
-     * 不标记脏——直接删除，不需要重算。
+     * <p><b>返回被移除的对象</b>：由调用者决定如何释放——{@code close}、
+     * 暂存到撤销栈、迁移到其他场景，等。编辑器<b>不 close</b>
+     * 用户的 {@code SceneObject}。
+     *
+     * <p><b>内部缓存的清理</b>：{@code transforms} / {@code preTransforms}
+     * 等编辑器内部数据由本方法清理——它们不是用户数据。
+     *
+     * <p><b>顺序</b>：先只读快照收集子树 id（拓扑还完整），再收集对象
+     * （移除前），再删拓扑 + objects，最后按 id 清理 {@code preTransforms}——
+     * 避免“拓扑破坏后无法遍历子树”的问题。
      *
      * <p><b>dirtyNodes 不清理</b>：可能包含已删除的节点，
-     * {@link #flushDirty} 会跳过不存在的节点。未删除节点的脏标记
-     * 保留——它们仍然需要重算。
+     * {@link #flushDirty} 会跳过不存在的节点。
      *
-     * @param nodeId 节点 id
+     * @param nodeId 子树根节点 id
+     * @return 被移除的对象列表（先序，含子树根），调用者负责释放
      */
-    public void removeNode(long nodeId) {
+    public List<SceneObject> removeNode(long nodeId, List<SceneObject> removed) {
+        // 1. 只读快照收集子树 id——拓扑还完整
+        LongList subtreeIds = new LongList();
+        collectSubtree(nodeId, subtreeIds);
+
+        // 2. 移除前收集对象——移除后 objects 表里就没了
+        LongObjectMap<SceneObject> objects = scene.objects().getForWrite().getMap();
+
+        for (int i = 0; i < subtreeIds.size(); i++) {
+            SceneObject obj = objects.get(subtreeIds.get(i));
+            if (obj != null) removed.add(obj);
+        }
+
+        // 3. 删除拓扑 + objects（不 close SceneObject）
         removeSubtreeFromScene(nodeId);
 
+        // 4. 清理编辑器内部缓存——preTransforms
         if (preTransforms != null) {
             LongObjectMap<CopyOnWriteFloats> out = preTransforms.getForWrite().getMap();
-            removeSubtreeFromOut(nodeId, out);
+            for (int i = 0; i < subtreeIds.size(); i++) {
+                CopyOnWriteFloats old = out.remove(subtreeIds.get(i));
+                if (old != null) {
+                    try { old.close(); } catch (Exception e) { throw new RuntimeException(e); }
+                }
+            }
+        }
+
+        return removed;
+    }
+
+    /**
+     * 只读快照收集子树 id（含根）。
+     *
+     * @param nodeId 子树根
+     * @param out    输出列表，按先序排列
+     */
+    private void collectSubtree(long nodeId, LongList out) {
+        out.add(nodeId);
+
+        LongLongMap firstChild  = scene.firstChild().getSnapshot().getMap();
+        LongLongMap nextSibling = scene.nextSibling().getSnapshot().getMap();
+
+        long childId = firstChild.get(nodeId);
+        while (childId != Long.MIN_VALUE) {
+            collectSubtree(childId, out);
+            childId = nextSibling.get(childId);
         }
     }
 
@@ -339,7 +423,16 @@ public final class SceneEditor implements CopyOnWrite<SceneEditor> {
     // 删除辅助
     // ═══════════════════════════════════════════════
 
-    /** 从 Scene 中递归删除节点及其子树。 */
+    /**
+     * 从 Scene 中递归删除节点及其子树。
+     *
+     * <p><b>删除顺序</b>：先递归删子树，再删自己。删自己时清理
+     * {@code objects} / {@code transforms} / {@code parent} /
+     * {@code firstChild} / {@code nextSibling} / {@code prevSibling}。
+     *
+     * <p><b>{@code SceneObject} 不 close</b>：{@code removeNode} 在调用
+     * 本方法前已经收集了对象引用，由调用者决定如何释放。
+     */
     private void removeSubtreeFromScene(long nodeId) {
         LongLongMap firstChild  = scene.firstChild().getForWrite().getMap();
         LongLongMap nextSibling = scene.nextSibling().getForWrite().getMap();
@@ -352,6 +445,9 @@ public final class SceneEditor implements CopyOnWrite<SceneEditor> {
         }
 
         detachFromParent(nodeId);
+
+        // 移除 objects 条目——不 close，由调用者处理
+        scene.objects().getForWrite().getMap().remove(nodeId);
 
         scene.transforms().getForWrite().getMap().remove(nodeId);
         scene.parent().getForWrite().getMap().remove(nodeId);
@@ -403,25 +499,6 @@ public final class SceneEditor implements CopyOnWrite<SceneEditor> {
         parentMap.remove(nodeId);
         nextSibling.remove(nodeId);
         prevSibling.remove(nodeId);
-    }
-
-    /** 从 out 中递归删除条目并 close。 */
-    private void removeSubtreeFromOut(long nodeId,
-                                      LongObjectMap<CopyOnWriteFloats> out) {
-        LongLongMap firstChild  = scene.firstChild().getSnapshot().getMap();
-        LongLongMap nextSibling = scene.nextSibling().getSnapshot().getMap();
-
-        long childId = firstChild.get(nodeId);
-        while (childId != Long.MIN_VALUE) {
-            long next = nextSibling.get(childId);
-            removeSubtreeFromOut(childId, out);
-            childId = next;
-        }
-
-        CopyOnWriteFloats old = out.remove(nodeId);
-        if (old != null) {
-            try { old.close(); } catch (Exception e) { throw new RuntimeException(e); }
-        }
     }
 
     // ═══════════════════════════════════════════════

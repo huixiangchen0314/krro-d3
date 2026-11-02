@@ -1,5 +1,8 @@
 package top.kzre.krro.d3.core.scene;
 
+import top.kzre.krro.d3.core.util.LongList;
+import top.kzre.krro.d3.core.util.LongLongMap;
+import top.kzre.krro.d3.core.util.LongObjectMap;
 import top.kzre.krro.d3.core.util.ResourceUtils;
 import top.kzre.krro.d3.core.util.cow.*;
 
@@ -56,7 +59,7 @@ public final class Scene implements CopyOnWrite<Scene> {
      */
     private final CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms;
 
-    public Scene(
+    private Scene(
             long sceneId, CopyOnWriteObject<LongListResource> roots,
             CopyOnWriteObject<LongLongMapResource> firstChild,
             CopyOnWriteObject<LongLongMapResource> parent,
@@ -72,6 +75,22 @@ public final class Scene implements CopyOnWrite<Scene> {
         this.prevSibling = prevSibling;
         this.objects = objects;
         this.transforms = transforms;
+    }
+
+    /**
+     * 创建空场景
+     * @param sceneId
+     * @return
+     */
+    public static Scene create(long sceneId){
+        return new Scene(sceneId,
+                new DefaultCopyOnWriteObject<>(new LongListResource(new LongList())),
+                new DefaultCopyOnWriteObject<>(new LongLongMapResource(new LongLongMap())),
+                new DefaultCopyOnWriteObject<>(new LongLongMapResource(new LongLongMap())),
+                new DefaultCopyOnWriteObject<>(new LongLongMapResource(new LongLongMap())),
+                new DefaultCopyOnWriteObject<>(new LongLongMapResource(new LongLongMap())),
+                new DefaultCopyOnWriteObject<>(new LongObjectMapResource<>(new LongObjectMap<>())),
+                new DefaultCopyOnWriteObject<>(new LongObjectMapResource<>(new LongObjectMap<>())));
     }
 
     public long sceneId() {
