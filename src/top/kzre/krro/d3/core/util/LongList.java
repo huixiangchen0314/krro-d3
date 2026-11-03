@@ -121,6 +121,46 @@ public final class LongList extends DynamicList {
         return new LongCursor(sizeValue());
     }
 
+    /**
+     * 在指定位置插入元素——原位置及之后的元素整体后移一位。
+     *
+     * <p>索引允许等于当前 size，此时等价于 {@link #add(long)} 追加到末尾。
+     *
+     * <p>示例：
+     * <pre>
+     *   LongList list = new LongList();
+     *   list.add(10);          // [10]
+     *   list.add(30);          // [10, 30]
+     *   list.addAt(1, 20);     // [10, 20, 30]
+     *   list.addAt(0, 5);      // [5, 10, 20, 30]
+     *   list.addAt(list.size(), 40); // [5, 10, 20, 30, 40]
+     * </pre>
+     *
+     * <p>复杂度：O(n - index)，最坏 O(n)。
+     *
+     * @param index 插入位置，{@code [0, size]}（含 size）
+     * @param v     要插入的值
+     * @throws IndexOutOfBoundsException index 不在 {@code [0, size]} 内
+     */
+    public void addAt(int index, long v) {
+        int n = sizeValue();
+        if (index < 0 || index > n) {
+            throw new IndexOutOfBoundsException(
+                    "index: " + index + ", size: " + n);
+        }
+
+        prepareForAppend(1);   // 可能触发 reallocate，必须在 arraycopy 之前
+
+        int move = n - index;
+        if (move > 0) {
+            // 把 [index, n) 整体后移一位，给 index 腾出位置
+            System.arraycopy(data, index, data, index + 1, move);
+        }
+        data[index] = v;
+        advanceSize(1);
+    }
+
+
     /** 无装箱游标。 */
     public final class LongCursor {
 

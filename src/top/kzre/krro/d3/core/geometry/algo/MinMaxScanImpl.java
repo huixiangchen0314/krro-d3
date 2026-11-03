@@ -1,5 +1,6 @@
 package top.kzre.krro.d3.core.geometry.algo;
 
+import top.kzre.krro.d3.core.geometry.AABB;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 
 /**
@@ -20,7 +21,7 @@ public final class MinMaxScanImpl implements MinMaxScanAlgo {
     public MinMaxScanImpl() {}
 
     @Override
-    public void compute(CopyOnWriteFloats positions, CopyOnWriteFloats out) {
+    public void compute(CopyOnWriteFloats positions, AABB out) {
         if (positions == null) throw new NullPointerException("positions");
         if (out == null)       throw new NullPointerException("out");
 
@@ -29,10 +30,7 @@ public final class MinMaxScanImpl implements MinMaxScanAlgo {
             throw new IllegalArgumentException(
                     "positions count must be multiple of 3, got " + posCount);
         }
-        if (out.count() < LENGTH) {
-            throw new IllegalArgumentException(
-                    "out needs " + LENGTH + " floats, has " + out.count());
-        }
+
 
         float[] pos    = positions.getFloatsSnapshot();
         int     posOff = (int) positions.floatOffset();
@@ -59,14 +57,6 @@ public final class MinMaxScanImpl implements MinMaxScanAlgo {
             if (z > maxZ) maxZ = z;
         }
 
-        // 写——必须先 ForWrite，再取 offset
-        float[] o    = out.getFloatsForWrite();
-        int     oOff = (int) out.floatOffset();
-        o[oOff]     = minX;
-        o[oOff + 1] = minY;
-        o[oOff + 2] = minZ;
-        o[oOff + 3] = maxX;
-        o[oOff + 4] = maxY;
-        o[oOff + 5] = maxZ;
+        out.set(minX, minY, minZ, maxX, maxY, maxZ);
     }
 }

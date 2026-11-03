@@ -151,12 +151,12 @@
 
    仅处理单图元叶——多图元叶跳过（无法精确测图元位置）。
    多图元场景请用 cross-query 拿候选 + 调用方自己精测。"
-  ^SpatialRayHit [^BVH lbvh ^Ray ray]
-  (let [n (primitive-count lbvh)]
+  ^SpatialRayHit [^BVH bvh ^Ray ray]
+  (let [n (primitive-count bvh)]
     (if (zero? n)
       SpatialRayHit/MISS
-      (let [^floats nodes (.data lbvh)
-            ^ints   child (.child lbvh)
+      (let [^floats nodes (.data bvh)
+            ^ints   child (.child bvh)
             ^ints   stack (int-array 128)]
         (aset stack 0 0)
         (loop [stack-ptr (int 1)
@@ -202,15 +202,15 @@
    - :acc  IntList——复用累加器——省略时内部创建
 
    复用约定见命名空间文档。"
-  ^SpatialOverlay [^BVH lbvh ^Sphere sphere & {:keys [acc]}]
+  ^SpatialOverlay [^BVH bvh ^Sphere sphere & {:keys [acc]}]
   (let [^IntList acc (or acc (IntList.))]
     (.clear acc)
-    (let [n (primitive-count lbvh)]
+    (let [n (primitive-count bvh)]
       (if (zero? n)
         SpatialOverlay/EMPTY
-        (let [^floats nodes  (.data lbvh)
-              ^ints   child  (.child lbvh)
-              ^ints   refs   (obj-refs lbvh)
+        (let [^floats nodes  (.data bvh)
+              ^ints   child  (.child bvh)
+              ^ints   refs   (obj-refs bvh)
               ^ints   stack  (int-array 128)
               cx     (.cx sphere)
               cy     (.cy sphere)
@@ -259,15 +259,15 @@
    - :acc  IntList——复用累加器——省略时内部创建
 
    复用约定见命名空间文档。"
-  ^SpatialOverlay [^BVH lbvh ^Ray ray & {:keys [acc]}]
+  ^SpatialOverlay [^BVH bvh ^Ray ray & {:keys [acc]}]
   (let [^IntList acc (or acc (IntList.))]
     (.clear acc)
-    (let [n (primitive-count lbvh)]
+    (let [n (primitive-count bvh)]
       (if (zero? n)
         SpatialOverlay/EMPTY
-        (let [^floats nodes  (.data lbvh)
-              ^ints   child  (.child lbvh)
-              ^ints   refs   (obj-refs lbvh)
+        (let [^floats nodes  (.data bvh)
+              ^ints   child  (.child bvh)
+              ^ints   refs   (obj-refs bvh)
               ^ints   stack  (int-array 128)]
           (aset stack 0 0)
           (loop [stack-ptr (int 1)]

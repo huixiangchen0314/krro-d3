@@ -104,14 +104,18 @@
   "从 AABB 数组构建 SBVH——阶段 2（空间分裂）。
 
    aabbs: float[]——AabbArray 布局——长度 = n × 6
-   n:     图元数
+   n:     图元数, 这个虽然可以算出来，但实际上这样处理更容易出错
 
    kwargs:
      :leaf-size  叶节点最大图元数——默认 8
-
+      :offset 数组的起始偏移
    返回 BVH 实例——SBVHMeta 存于 ext。"
-  ^BVH [^floats aabbs n & {:keys [leaf-size] :or {leaf-size 8}}]
-  (let [n         (long n)
+  ^BVH [^floats aabbs n
+        & {:keys [offset
+                  leaf-size]
+           :or {offset 0
+                leaf-size 8}}]
+  (let [n (long n)
         leaf-size (long leaf-size)]
     (if (zero? n)
       (BVH. (float-array 0) (int-array 0) (SBVHMeta. 0 (int-array 0) 0))
@@ -119,7 +123,7 @@
             initial-refs  (* 4 n)
             ctx           (SBVHBuildCtx. initial-nodes initial-refs)]
         (.initRefsFromAabbArray ctx aabbs 0 (int n))
-        (build-rec ctx 0 n leaf-size)
+        (build-rec ctx offset n leaf-size)
         (BVH. (.dataArray ctx) (.childArray ctx)
               (SBVHMeta. n (.objRefs ctx) (.objRefCount ctx)))))))
 

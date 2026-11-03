@@ -1,6 +1,6 @@
 package top.kzre.krro.d3.core.scene.algo;
 
-import top.kzre.krro.d3.core.scene.Scene;
+import top.kzre.krro.d3.core.scene.Hierarchy;
 import top.kzre.krro.d3.core.util.LongList;
 import top.kzre.krro.d3.core.util.LongLongMap;
 import top.kzre.krro.d3.core.util.LongObjectMap;
@@ -19,7 +19,7 @@ import java.util.Arrays;
 /**
  * 预乘变换计算——把局部变换沿树累乘成全局变换。
  *
- * <p><b>输入</b>：树结构 + 局部变换（{@link Scene} 的本质数据）。
+ * <p><b>输入</b>：树结构 + 局部变换（{@link Hierarchy} 的本质数据）。
  *
  * <p><b>输出</b>：{@code id → mat4} 的映射，每个节点一个全局变换
  * {@code float[16]}，列主序。
@@ -38,7 +38,7 @@ import java.util.Arrays;
  *
  * <p><b>矩阵运算复用 {@link KMath}</b>——不重复实现。
  *
- * <p><b>纯函数</b>：只读 {@link Scene} 的快照数据，不修改 Scene、
+ * <p><b>纯函数</b>：只读 {@link Hierarchy} 的快照数据，不修改 Scene、
  * 不感知缓存、不做失效——缓存和失效由上层负责。{@code computeSubtree}
  * 对 {@code out} 的写入是“调用方提供的输出容器”，不是“算法维护的
  * 内部状态”。
@@ -61,19 +61,19 @@ public final class PreMultiTransform {
      * 调用方负责其生命周期（归入 {@code LongObjectMapResource} 后
      * 由它统一 close）。
      *
-     * @param scene         场景，非 null
+     * @param hierachy         场景，非 null
      * @param floatTemplate 输出分配的 arena 模板，非 null
      * @return id → mat4 的映射，非 null
      */
     public static LongObjectMap<CopyOnWriteFloats> compute(
-            Scene scene,
+            Hierarchy hierachy,
             ArenaTemplate<?, FloatArenaView> floatTemplate) {
-        if (scene == null)         throw new NullPointerException("scene");
+        if (hierachy == null)         throw new NullPointerException("scene");
         if (floatTemplate == null) throw new NullPointerException("floatTemplate");
 
         LongObjectMap<CopyOnWriteFloats> out = new LongObjectMap<>();
 
-        LongListResource roots = scene.roots().getSnapshot();
+        LongListResource roots = hierachy.roots().getSnapshot();
         LongList rootList = roots.getList();
         int rootCount = rootList.size();
 
@@ -82,7 +82,7 @@ public final class PreMultiTransform {
 
         for (int i = 0; i < rootCount; i++) {
             long rootId = rootList.get(i);
-            computeSubtree(scene, rootId, identity, out, floatTemplate);
+            computeSubtree(hierachy, rootId, identity, out, floatTemplate);
         }
 
         return out;
@@ -134,19 +134,19 @@ public final class PreMultiTransform {
      * {@code computeSubtree} 只读 {@code parentGlobal}，不持有引用。
      */
     public static void computeSubtree(
-            Scene scene,
+            Hierarchy hierachy,
             long rootNodeId,
             float[] parentGlobal,
             LongObjectMap<CopyOnWriteFloats> out,
             ArenaTemplate<?, FloatArenaView> floatTemplate) {
-        if (scene == null)         throw new NullPointerException("scene");
+        if (hierachy == null)         throw new NullPointerException("scene");
         if (parentGlobal == null)  throw new NullPointerException("parentGlobal");
         if (out == null)           throw new NullPointerException("out");
         if (floatTemplate == null) throw new NullPointerException("floatTemplate");
 
-        LongObjectMap<CopyOnWriteFloats> transforms  = scene.transforms().getSnapshot().getMap();
-        LongLongMap                      firstChild  = scene.firstChild().getSnapshot().getMap();
-        LongLongMap                      nextSibling = scene.nextSibling().getSnapshot().getMap();
+        LongObjectMap<CopyOnWriteFloats> transforms  = hierachy.transforms().getSnapshot().getMap();
+        LongLongMap                      firstChild  = hierachy.firstChild().getSnapshot().getMap();
+        LongLongMap                      nextSibling = hierachy.nextSibling().getSnapshot().getMap();
 
         computeRecursive(rootNodeId, parentGlobal, out, transforms, firstChild, nextSibling, floatTemplate);
     }

@@ -4,7 +4,7 @@ package top.kzre.krro.d3.core.scene;
  * 相机——场景对象，纯观察配置。
  *
  * <p><b>位姿不在这里</b>：相机节点的局部变换存在
- * {@link Scene#transforms()}，全局变换由 {@link SceneEditor#preTransforms()}
+ * {@link Hierarchy#transforms()}，全局变换由 {@link HierarchyEditor#getGlobalTransforms()}
  * 缓存。{@code view} 矩阵是相机全局变换的逆。
  *
  * <p><b>交互状态不在这里</b>：轨道控制器的取景中心、距离、yaw/pitch

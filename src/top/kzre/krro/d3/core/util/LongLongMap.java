@@ -14,7 +14,14 @@ import java.util.Arrays;
  */
 public final class LongLongMap {
 
-    private static final long EMPTY_VALUE = Long.MIN_VALUE;
+    public static final long UNIT_VALUE = Long.MIN_VALUE;
+
+    /**
+     * 判断值是否是空值
+     */
+    public static boolean isUnitValue(long value) {
+        return value == UNIT_VALUE;
+    }
 
     private long[] keys;
     private long[] values;
@@ -28,7 +35,7 @@ public final class LongLongMap {
         int cap = RobinHoodHash.capacityFor(expectedSize);
         this.keys      = new long[cap];
         this.values    = new long[cap];
-        Arrays.fill(this.values, EMPTY_VALUE);
+        Arrays.fill(this.values, UNIT_VALUE);
         this.mask      = cap - 1;
         this.threshold = RobinHoodHash.thresholdFor(cap);
         this.size      = 0;
@@ -55,7 +62,7 @@ public final class LongLongMap {
         if (keys.length < needed) {
             this.keys      = new long[needed];
             this.values    = new long[needed];
-            Arrays.fill(this.values, EMPTY_VALUE);
+            Arrays.fill(this.values, UNIT_VALUE);
             this.mask      = needed - 1;
             this.threshold = RobinHoodHash.thresholdFor(needed);
         }
@@ -71,17 +78,17 @@ public final class LongLongMap {
         int idx = RobinHoodHash.idealIndex(key, mask);
         int dib = 0;
 
-        while (values[idx] != EMPTY_VALUE) {
+        while (values[idx] != UNIT_VALUE) {
             if (keys[idx] == key) return values[idx];
 
             int existingDib = RobinHoodHash.dib(
                     idx, RobinHoodHash.idealIndex(keys[idx], mask), mask);
-            if (existingDib < dib) return EMPTY_VALUE;
+            if (existingDib < dib) return UNIT_VALUE;
 
             idx = RobinHoodHash.nextIndex(idx, mask);
             dib++;
         }
-        return EMPTY_VALUE;
+        return UNIT_VALUE;
     }
 
     public boolean containsKey(long key) {
@@ -89,7 +96,7 @@ public final class LongLongMap {
         int idx = RobinHoodHash.idealIndex(key, mask);
         int dib = 0;
 
-        while (values[idx] != EMPTY_VALUE) {
+        while (values[idx] != UNIT_VALUE) {
             if (keys[idx] == key) return true;
 
             int existingDib = RobinHoodHash.dib(
@@ -107,7 +114,7 @@ public final class LongLongMap {
     // ═══════════════════════════════════════════════
 
     public long put(long key, long value) {
-        if (value == EMPTY_VALUE) {
+        if (value == UNIT_VALUE) {
             throw new IllegalArgumentException("value must not be Long.MIN_VALUE");
         }
         if (size >= threshold) grow();
@@ -122,11 +129,11 @@ public final class LongLongMap {
         int dib = 0;
 
         while (true) {
-            if (values[idx] == EMPTY_VALUE) {
+            if (values[idx] == UNIT_VALUE) {
                 keys[idx]   = curKey;
                 values[idx] = curVal;
                 size++;
-                return EMPTY_VALUE;
+                return UNIT_VALUE;
             }
 
             if (keys[idx] == curKey) {
@@ -159,11 +166,11 @@ public final class LongLongMap {
     // ═══════════════════════════════════════════════
 
     public int     size()    { return size; }
-    public boolean isEmpty() { return size == 0; }
+    public boolean isUnitValue() { return size == 0; }
     public int     capacity() { return keys.length; }
 
     public void clear() {
-        Arrays.fill(values, EMPTY_VALUE);
+        Arrays.fill(values, UNIT_VALUE);
         size = 0;
     }
 
@@ -178,13 +185,13 @@ public final class LongLongMap {
         int newCap = RobinHoodHash.growCapacity(keys.length);
         keys      = new long[newCap];
         values    = new long[newCap];
-        Arrays.fill(values, EMPTY_VALUE);
+        Arrays.fill(values, UNIT_VALUE);
         mask      = newCap - 1;
         threshold = RobinHoodHash.thresholdFor(newCap);
         size      = 0;
 
         for (int i = 0; i < oldKeys.length; i++) {
-            if (oldValues[i] != EMPTY_VALUE) {
+            if (oldValues[i] != UNIT_VALUE) {
                 insert(oldKeys[i], oldValues[i]);
             }
         }
@@ -212,7 +219,7 @@ public final class LongLongMap {
         int idx = RobinHoodHash.idealIndex(key, mask);
         int dib = 0;
 
-        while (values[idx] != EMPTY_VALUE) {
+        while (values[idx] != UNIT_VALUE) {
             if (keys[idx] == key) {
                 long oldValue = values[idx];
                 backwardShiftDelete(idx);
@@ -222,27 +229,27 @@ public final class LongLongMap {
 
             int existingDib = RobinHoodHash.dib(
                     idx, RobinHoodHash.idealIndex(keys[idx], mask), mask);
-            if (existingDib < dib) return EMPTY_VALUE;
+            if (existingDib < dib) return UNIT_VALUE;
 
             idx = RobinHoodHash.nextIndex(idx, mask);
             dib++;
         }
-        return EMPTY_VALUE;
+        return UNIT_VALUE;
     }
 
     private void backwardShiftDelete(int idx) {
         int mask = this.mask;
-        values[idx] = EMPTY_VALUE;
+        values[idx] = UNIT_VALUE;
 
         int hole = idx;
         int next = RobinHoodHash.nextIndex(idx, mask);
 
-        while (values[next] != EMPTY_VALUE) {
+        while (values[next] != UNIT_VALUE) {
             if (!RobinHoodHash.canBackwardShift(keys[next], next, mask)) break;
 
             keys[hole]   = keys[next];
             values[hole] = values[next];
-            values[next] = EMPTY_VALUE;
+            values[next] = UNIT_VALUE;
 
             hole = next;
             next = RobinHoodHash.nextIndex(next, mask);

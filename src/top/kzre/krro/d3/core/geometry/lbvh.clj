@@ -98,13 +98,15 @@
    n:       long——图元数
 
    返回 BVH 实例——primitive-count 存于 ext。"
-  ^BVH [^floats aabbs ^longs mortons ^long n]
+  ^BVH [^floats aabbs ^longs mortons n
+        & {:keys [offset]
+           :or {offset 0}}]
   (if (zero? n)
     (bvh/make-bvh (float-array 0) (int-array 0) 0)
     (let [data (allocate-aabb-array n)
           child (allocate-child-array n)
           ctx  (LBVHBuildCtx. data child aabbs mortons)]
-      (build-rec ctx 0 n)
+      (build-rec ctx offset n)
       (bvh/make-bvh data child n))))
 
 (set! *unchecked-math* nil)

@@ -22,7 +22,7 @@ import top.kzre.krro.d3.core.util.cow.*;
  *
  * <p>不含逻辑——操作由外部 Editor / 函数完成。
  */
-public final class Scene implements CopyOnWrite<Scene> {
+public final class Hierarchy implements CopyOnWrite<Hierarchy> {
     private final long sceneId;
     /**
      * 根节点 id 列表
@@ -59,7 +59,7 @@ public final class Scene implements CopyOnWrite<Scene> {
      */
     private final CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> transforms;
 
-    private Scene(
+    private Hierarchy(
             long sceneId, CopyOnWriteObject<LongListResource> roots,
             CopyOnWriteObject<LongLongMapResource> firstChild,
             CopyOnWriteObject<LongLongMapResource> parent,
@@ -79,11 +79,11 @@ public final class Scene implements CopyOnWrite<Scene> {
 
     /**
      * 创建空场景
-     * @param sceneId
+     * @param id
      * @return
      */
-    public static Scene create(long sceneId){
-        return new Scene(sceneId,
+    public static Hierarchy create(long id){
+        return new Hierarchy(id,
                 new DefaultCopyOnWriteObject<>(new LongListResource(new LongList())),
                 new DefaultCopyOnWriteObject<>(new LongLongMapResource(new LongLongMap())),
                 new DefaultCopyOnWriteObject<>(new LongLongMapResource(new LongLongMap())),
@@ -93,7 +93,7 @@ public final class Scene implements CopyOnWrite<Scene> {
                 new DefaultCopyOnWriteObject<>(new LongObjectMapResource<>(new LongObjectMap<>())));
     }
 
-    public long sceneId() {
+    public long getSceneId() {
         return sceneId;
     }
 
@@ -126,8 +126,8 @@ public final class Scene implements CopyOnWrite<Scene> {
     }
 
     @Override
-    public Scene shared() {
-        return new Scene(
+    public Hierarchy shared() {
+        return new Hierarchy(
                 sceneId, roots.shared(),
                 firstChild.shared(),
                 parent.shared(),

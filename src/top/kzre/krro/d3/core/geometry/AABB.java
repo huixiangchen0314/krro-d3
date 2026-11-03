@@ -1,5 +1,11 @@
 package top.kzre.krro.d3.core.geometry;
 
+import top.kzre.krro.util.math.KMath;
+import top.kzre.krro.util.pool.FloatsHolder;
+import top.kzre.krro.util.pool.FloatsPool;
+import top.kzre.krro.util.pool.PoolManagers;
+import top.kzre.krro.util.pool.PoolsHolder;
+
 /**
  * 可变的轴对齐包围盒。
  *
@@ -98,6 +104,70 @@ public final class AABB implements IAABB {
         this.maxX = a.getMaxX();
         this.maxY = a.getMaxY();
         this.maxZ = a.getMaxZ();
+    }
+
+    public void transform(float[] mat4){
+        transform(this, mat4, this);
+    }
+
+    /**
+     * 执行变换, mat4 不能为仿射变换，外部自己检查，否则结果按隐式处理
+     */
+    public static void transform(
+            IAABB aabb,
+            float[] mat4, AABB out) {
+        if (mat4 == null) {
+            throw new IllegalArgumentException("mat4 cannot be null");
+        }
+        if (out == null) {
+            throw new IllegalArgumentException("out cannot be null");
+        }
+
+        FloatsHolder holder = PoolManagers.floats().getHolder();
+        FloatsPool pool = holder.getPool(3);
+        float[] point = pool.acquire();
+        try {
+            float newMinX = Float.POSITIVE_INFINITY;
+            float newMinY = Float.POSITIVE_INFINITY;
+            float newMinZ = Float.POSITIVE_INFINITY;
+            float newMaxX = Float.NEGATIVE_INFINITY;
+            float newMaxY = Float.NEGATIVE_INFINITY;
+            float newMaxZ = Float.NEGATIVE_INFINITY;
+
+            // 变换 AABB 的 8 个角点，再重新求 min/max
+            for (int i = 0; i < 8; i++) {
+                point[0] = ((i & 1) == 0) ? aabb.getMinX() :aabb. getMaxX();
+                point[1] = ((i & 2) == 0) ? aabb.getMinY() : aabb.getMaxY();
+                point[2] = ((i & 4) == 0) ? aabb.getMinZ() : aabb.getMaxZ();
+
+                KMath.mat4MulVec3Affine(mat4, point, point);
+
+                newMinX = Math.min(newMinX, point[0]);
+                newMinY = Math.min(newMinY, point[1]);
+                newMinZ = Math.min(newMinZ, point[2]);
+                newMaxX = Math.max(newMaxX, point[0]);
+                newMaxY = Math.max(newMaxY, point[1]);
+                newMaxZ = Math.max(newMaxZ, point[2]);
+            }
+
+            out.minX = newMinX;
+            out.minY = newMinY;
+            out.minZ = newMinZ;
+            out.maxX = newMaxX;
+            out.maxY = newMaxY;
+            out.maxZ = newMaxZ;
+        } finally {
+            pool.release(point);
+        }
+    }
+
+    private static boolean isAffine(float[] m) {
+        final float EPS = 1.0E-6F;
+        // 列主序下：m[3], m[7], m[11], m[15] 是矩阵最后一行
+        return Math.abs(m[3])  <= EPS
+                && Math.abs(m[7])  <= EPS
+                && Math.abs(m[11]) <= EPS
+                && Math.abs(m[15] - 1F) <= EPS;
     }
 
     // ── 合并 ───────────────────────────────────

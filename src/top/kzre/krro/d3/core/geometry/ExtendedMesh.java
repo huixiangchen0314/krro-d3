@@ -70,7 +70,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     /**
      * 包围盒缓存。float[6]。null 表示未计算。
      */
-    private CopyOnWriteFloats cachedBounds;
+    private ImmutableAABB cachedBounds;
 
     /**
      * 图元 AABB 缓存。float6[nfaces]。null 表示未计算。
@@ -324,17 +324,17 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
 
     /**
-     * 包围盒。float[6] = [minX, minY, minZ, maxX, maxY, maxZ]。
+     * 包围盒。
      *
      * <p>依赖：positions。
      */
-    public CopyOnWriteFloats getBounds() {
-        CopyOnWriteFloats c = cachedBounds;
+    public IAABB getBound() {
+        ImmutableAABB c = cachedBounds;
         if (c != null) return c;
 
-        CopyOnWriteFloats out = allocateFloats(minMaxScan.count());
-        minMaxScan.compute(mesh.positions(), out);
-        cachedBounds = out;
+        AABB aabb = new AABB();
+        minMaxScan.compute(mesh.positions(), aabb);
+        cachedBounds = aabb.toImmutable();
         return cachedBounds;
     }
 
@@ -394,11 +394,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
     private void discardBounds() {
         if (cachedBounds != null) {
-            try {
-                cachedBounds.close();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+
             cachedBounds = null;
         }
     }
@@ -459,7 +455,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
         m.cachedCornerNormals = cachedCornerNormals == null ? null : cachedCornerNormals.shared();
         m.cachedCornerEdges = cachedCornerEdges == null ? null : cachedCornerEdges.shared();
         m.cachedTangents = cachedTangents == null ? null : cachedTangents.shared();
-        m.cachedBounds = cachedBounds == null ? null : cachedBounds.shared();
+        m.cachedBounds = cachedBounds;
         m.cachedFaceAabbs = cachedFaceAabbs == null ? null : cachedFaceAabbs.shared();
         m.cachedTriangleIndices = cachedTriangleIndices == null ? null : cachedTriangleIndices.shared();
 
@@ -472,45 +468,16 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
     @Override
     public void close() {
+        cachedBounds = null;
         RuntimeException ex = ResourceUtils.closeDelayError(
                 cachedCornerPositions, cachedCornerNormals, cachedCornerEdges,
-                cachedTangents, cachedBounds, cachedFaceAabbs,
+                cachedTangents, cachedFaceAabbs,
                 cachedTriangleIndices,
                 mesh);
+
         if (ex != null) throw ex;
     }
 
-    // ═══════════════════════════════════════════════
-    // 分配视图——算法直接写入
-    // ═══════════════════════════════════════════════
-
-    /**
-     * 分配 float arena 视图——不初始化，由算法直接写入。
-     *
-     * <p>和 {@link #allocateFloats(float[])} 的差异：那个是"分配 + 拷贝
-     * 已有数组"，这个是"分配 + 返回视图"——算法写入视图，避免二次复制。
-     */
-    private FloatArenaView allocateFloatView(int floatCount) {
-        int byteSize = floatCount * Float.BYTES;
-        AllocateResult<FloatArenaView> r = floatTemplate.allocate(byteSize);
-        if (r.isFailure()) {
-            throw new IllegalStateException(
-                    "AutoGrow float allocation failed unexpectedly: "
-                            + byteSize + " bytes");
-        }
-        return r.getView();
-    }
-
-    private IntArenaView allocateIntView(int intCount) {
-        int byteSize = intCount * Integer.BYTES;
-        AllocateResult<IntArenaView> r = intTemplate.allocate(byteSize);
-        if (r.isFailure()) {
-            throw new IllegalStateException(
-                    "AutoGrow int allocation failed unexpectedly: "
-                            + byteSize + " bytes");
-        }
-        return r.getView();
-    }
 
     private CopyOnWriteFloats allocateFloats(long floatCount) {
         long byteSize = floatCount * Float.BYTES;

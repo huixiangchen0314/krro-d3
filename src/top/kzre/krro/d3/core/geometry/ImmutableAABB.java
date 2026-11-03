@@ -64,6 +64,8 @@ public final class ImmutableAABB implements IAABB {
                 Math.max(maxZ, a.getMaxZ()));
     }
 
+
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

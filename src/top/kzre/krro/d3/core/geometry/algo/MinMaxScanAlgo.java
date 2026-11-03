@@ -1,5 +1,6 @@
 package top.kzre.krro.d3.core.geometry.algo;
 
+import top.kzre.krro.d3.core.geometry.AABB;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 
 /**
@@ -32,5 +33,5 @@ public interface MinMaxScanAlgo {
      * @throws NullPointerException     positions / out 为 null
      * @throws IllegalArgumentException positions 的 count 不是 3 的倍数，或 out 容量不足
      */
-    void compute(CopyOnWriteFloats positions, CopyOnWriteFloats out);
+    void compute(CopyOnWriteFloats positions, AABB out);
 }
