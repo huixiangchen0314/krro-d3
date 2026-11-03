@@ -66,7 +66,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
     public static final int MAT4_LENGTH = 16;
 
     private final Hierarchy hierarchy;
-    private final ArenaTemplate<?, FloatArenaView> floatTemplate;
+    private final ArenaChannelHolder<?, FloatArenaView> floatArena;
 
     /** 全局变换缓存。null 表示未计算。 */
     private CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> globalTransforms;
@@ -84,18 +84,19 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
     private final float[] mat4Scratch0 = new float[16];
     private final float[] mat4Scratch1 = new float[16];
 
-    private HierarchyEditor(Hierarchy hierarchy, ArenaTemplate<?, FloatArenaView> floatTemplate) {
+    private HierarchyEditor(Hierarchy hierarchy, ArenaChannelHolder<?, FloatArenaView> floatArena) {
         if (hierarchy == null) throw new NullPointerException("hierarchy");
-        if (floatTemplate == null) throw new NullPointerException("floatTemplate");
+        if (floatArena == null) throw new NullPointerException("floatTemplate");
         this.hierarchy = hierarchy;
-        this.floatTemplate = floatTemplate;
+        this.floatArena = floatArena;
     }
 
-    public static HierarchyEditor create(long sceneId,
-                                         ArenaTemplate<?, FloatArenaView> floatTemplate) {
+    public static HierarchyEditor create(
+            long sceneId,
+            ArenaChannelHolder<?, FloatArenaView> floatArena) {
         return new HierarchyEditor(
                 Hierarchy.create(sceneId),
-                floatTemplate
+                floatArena
         );
     }
 
@@ -953,7 +954,13 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
      */
     private CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> getGlobalTransforms() {
         if (globalTransforms == null) {
-            LongObjectMap<CopyOnWriteFloats> map = PreMultiTransform.compute(hierarchy, floatTemplate);
+            LongObjectMap<CopyOnWriteFloats> map;
+            try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
+                        session = floatArena.open()) {
+                map = PreMultiTransform.compute(hierarchy, session.get());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             globalTransforms = new DefaultCopyOnWriteObject<>(new LongObjectMapResource<>(map));
             dirtyNodes.clear();
             return globalTransforms;
@@ -1012,7 +1019,14 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
      */
     private void ensureGlobalFresh(long nodeId) {
         if (globalTransforms == null) {
-            LongObjectMap<CopyOnWriteFloats> map = PreMultiTransform.compute(hierarchy, floatTemplate);
+            LongObjectMap<CopyOnWriteFloats> map;
+            try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
+                        session = floatArena.open()){
+                map =   PreMultiTransform.compute(hierarchy, session.get());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
             globalTransforms = new DefaultCopyOnWriteObject<>(new LongObjectMapResource<>(map));
             dirtyNodes.clear();
             return;
@@ -1030,7 +1044,13 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
 
         LongObjectMap<CopyOnWriteFloats> out = globalTransforms.getForWrite().getMap();
         readParentGlobal(d, parentMap, out, mat4Scratch0);
-        PreMultiTransform.computeSubtree(hierarchy, d, mat4Scratch0, out, floatTemplate);
+        try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
+                    session = floatArena.open()) {
+            PreMultiTransform.computeSubtree(hierarchy, d, mat4Scratch0, out, session.get());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
 
         // 逆缓存：只失效，不重算。按需在 getInvGlobalTransform 中回填。
         if (invTransforms != null) {
@@ -1066,7 +1086,13 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
         dirtyNodes.forEach((nodeId, ignored) -> {
             if (!transforms.containsKey(nodeId)) return;
             readParentGlobal(nodeId, parentMap, out, mat4Scratch0);
-            PreMultiTransform.computeSubtree(hierarchy, nodeId, mat4Scratch0, out, floatTemplate);
+            try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
+                        session = floatArena.open()) {
+                PreMultiTransform.computeSubtree(hierarchy, nodeId, mat4Scratch0, out, session.get());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
         });
 
         // 逆缓存：只失效，不重算
@@ -1204,7 +1230,14 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
 
     private CopyOnWriteFloats allocFloats(float[] data) {
         int byteSize = data.length * Float.BYTES;
-        AllocateResult<FloatArenaView> r = floatTemplate.allocate(byteSize);
+        AllocateResult<FloatArenaView> r;
+        try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
+                    session = floatArena.open()) {
+            r = session.get().allocate(byteSize);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
         if (r.isFailure()) {
             throw new IllegalStateException(
                     "AutoGrow float allocation failed unexpectedly: " + byteSize + " bytes");
@@ -1223,7 +1256,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
         if (globalTransforms != null && !dirtyNodes.isEmpty()) {
             flushDirty();
         }
-        HierarchyEditor e = new HierarchyEditor(hierarchy.shared(), floatTemplate);
+        HierarchyEditor e = new HierarchyEditor(hierarchy.shared(), floatArena);
         e.globalTransforms = globalTransforms == null ? null : globalTransforms.shared();
         e.invTransforms    = invTransforms    == null ? null : invTransforms.shared();
         return e;
