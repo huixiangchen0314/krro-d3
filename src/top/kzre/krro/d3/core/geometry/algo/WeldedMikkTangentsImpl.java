@@ -2,6 +2,8 @@ package top.kzre.krro.d3.core.geometry.algo;
 
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.FloatArenaView;
+import top.kzre.krro.util.arena.IntArenaView;
 
 import java.util.Arrays;
 
@@ -20,6 +22,11 @@ import java.util.Arrays;
  * 切线；如果整个组没有有效贡献，fallback 到 {@code (1, 0, 0, 1)}。
  *
  * <p><b>输出</b>：{@code float4[ncorners]}——xyz + 手性 w。
+ *
+ * <p><b>Session 访问</b>：通过 {@link FloatArenaView.ArraySession} /
+ * {@link IntArenaView.ArraySession} 访问底层数组与偏移。{@code out} 用
+ * {@code arrayForWrite()}（写会话，可能触发 COW 复制）；输入用
+ * {@code array()}（读会话，不触发复制）。空输入时不打开写会话。
  *
  * <p><b>线程契约</b>：只读输入，写 {@code out}。{@code TmpVert[]} 和
  * {@code groupTan1/2} 是每次调用分配的临时数组。
@@ -47,157 +54,173 @@ public final class WeldedMikkTangentsImpl implements TangentAlgo {
         if (triangleIndices == null) throw new NullPointerException("triangleIndices");
         if (out == null)             throw new NullPointerException("out");
 
-        long posCount = positions.count();
-        if (posCount % 3 != 0) {
-            throw new IllegalArgumentException(
-                    "positions count must be multiple of 3, got " + posCount);
-        }
-        if (uv0.count() % 2 != 0) {
-            throw new IllegalArgumentException(
-                    "uv0 count must be multiple of 2, got " + uv0.count());
-        }
-        if (cornerNormals.count() % 3 != 0) {
-            throw new IllegalArgumentException(
-                    "cornerNormals count must be multiple of 3, got " + cornerNormals.count());
-        }
-        if (triangleIndices.count() % 3 != 0) {
-            throw new IllegalArgumentException(
-                    "triangleIndices count must be multiple of 3, got " + triangleIndices.count());
-        }
+        // faceOffsets 仅做 null 校验——本算法不实际使用
+        try (FloatArenaView.ArraySession posSess = positions.array();
+             IntArenaView.ArraySession  cvSess  = cornerVerts.array();
+             FloatArenaView.ArraySession uvSess  = uv0.array();
+             FloatArenaView.ArraySession nrmSess = cornerNormals.array();
+             IntArenaView.ArraySession  triSess = triangleIndices.array()) {
 
-        long ncorners = cornerVerts.count();
-        long needed   = ncorners * 4L;
-        if (out.count() < needed) {
-            throw new IllegalArgumentException(
-                    "out needs " + needed + " floats, has " + out.count());
-        }
-        if (ncorners == 0) return;
+            // ── 输入一致性校验 ──
+            if (posSess.count() % 3 != 0) {
+                throw new IllegalArgumentException(
+                        "positions count must be multiple of 3, got " + posSess.count());
+            }
+            if (uvSess.count() % 2 != 0) {
+                throw new IllegalArgumentException(
+                        "uv0 count must be multiple of 2, got " + uvSess.count());
+            }
+            if (nrmSess.count() % 3 != 0) {
+                throw new IllegalArgumentException(
+                        "cornerNormals count must be multiple of 3, got " + nrmSess.count());
+            }
+            if (triSess.count() % 3 != 0) {
+                throw new IllegalArgumentException(
+                        "triangleIndices count must be multiple of 3, got " + triSess.count());
+            }
 
-        // ── 读 ──
-        float[] pos   = positions.getFloatsSnapshot();
-        int     pOff  = (int) positions.floatOffset();
-        int[]   cv    = cornerVerts.getIntsSnapshot();
-        int     cvOff = (int) cornerVerts.intOffset();
-        float[] uv    = uv0.getFloatsSnapshot();
-        int     uvOff = (int) uv0.floatOffset();
-        float[] nrm   = cornerNormals.getFloatsSnapshot();
-        int     nOff  = (int) cornerNormals.floatOffset();
-        int[]   tri   = triangleIndices.getIntsSnapshot();
-        int     triOff = (int) triangleIndices.intOffset();
+            int ncorners = cvSess.count();
+            if (ncorners == 0) return;
 
-        int ncornersI = (int) ncorners;
-        int ntri      = (int) (triangleIndices.count() / 3);
+            long needed = (long) ncorners * 4L;
 
-        // ── 1. 构建 TmpVert 并排序 ──
-        TmpVert[] tmp = new TmpVert[ncornersI];
-        for (int c = 0; c < ncornersI; c++) {
-            int v  = cv[cvOff + c];
-            int pb = pOff + v * 3;
-            int nb = nOff + c * 3;
-            int ub = uvOff + c * 2;
-            tmp[c] = new TmpVert(
-                    pos[pb], pos[pb + 1], pos[pb + 2],
-                    nrm[nb], nrm[nb + 1], nrm[nb + 2],
-                    uv[ub], uv[ub + 1],
-                    c);
-        }
-        Arrays.sort(tmp);
+            // ── 写会话：容量校验 + 写 ──
+            try (FloatArenaView.ArraySession outSess = out.arrayForWrite()) {
 
-        // ── 2. 分组 ──
-        int[] groupIdOfCorner = new int[ncornersI];
-        int groupCount = 0;
-        groupIdOfCorner[tmp[0].cornerIndex] = 0;
-        for (int i = 1; i < ncornersI; i++) {
-            if (tmp[i].compareTo(tmp[i - 1]) != 0) {
+                if (outSess.count() < needed) {
+                    throw new IllegalArgumentException(
+                            "out needs " + needed + " floats, has " + outSess.count());
+                }
+
+                // ── 读快照（会话生命周期内稳定）──
+                float[] pos    = posSess.getFloats();
+                int     pOff   = posSess.offset();
+                int[]   cv     = cvSess.getInts();
+                int     cvOff  = cvSess.offset();
+                float[] uv     = uvSess.getFloats();
+                int     uvOff  = uvSess.offset();
+                float[] nrm    = nrmSess.getFloats();
+                int     nOff   = nrmSess.offset();
+                int[]   tri    = triSess.getInts();
+                int     triOff = triSess.offset();
+                int     ntri   = triSess.count() / 3;
+
+                // ── 1. 构建 TmpVert 并排序 ──
+                TmpVert[] tmp = new TmpVert[ncorners];
+                for (int c = 0; c < ncorners; c++) {
+                    int v  = cv[cvOff + c];
+                    int pb = pOff + v * 3;
+                    int nb = nOff + c * 3;
+                    int ub = uvOff + c * 2;
+                    tmp[c] = new TmpVert(
+                            pos[pb], pos[pb + 1], pos[pb + 2],
+                            nrm[nb], nrm[nb + 1], nrm[nb + 2],
+                            uv[ub], uv[ub + 1],
+                            c);
+                }
+                Arrays.sort(tmp);
+
+                // ── 2. 分组 ──
+                int[] groupIdOfCorner = new int[ncorners];
+                int groupCount = 0;
+                groupIdOfCorner[tmp[0].cornerIndex] = 0;
+                for (int i = 1; i < ncorners; i++) {
+                    if (tmp[i].compareTo(tmp[i - 1]) != 0) {
+                        groupCount++;
+                    }
+                    groupIdOfCorner[tmp[i].cornerIndex] = groupCount;
+                }
                 groupCount++;
+
+                // ── 3. 遍历 triangleIndices 累加 ──
+                float[] groupTan1 = new float[groupCount * 3];
+                float[] groupTan2 = new float[groupCount * 3];
+
+                // TODO 并行加速
+                for (int t = 0; t < ntri; t++) {
+                    int ti = triOff + t * 3;
+                    int c0 = tri[ti];
+                    int c1 = tri[ti + 1];
+                    int c2 = tri[ti + 2];
+                    accumulateTriangle(c0, c1, c2,
+                            pos, pOff, cv, cvOff, uv, uvOff,
+                            groupIdOfCorner, groupTan1, groupTan2);
+                }
+
+                // ── 4. 归一化 group ──
+                // TODO 并行加速
+                for (int g = 0; g < groupCount; g++) {
+                    float sx = groupTan1[g * 3];
+                    float sy = groupTan1[g * 3 + 1];
+                    float sz = groupTan1[g * 3 + 2];
+                    float lenS = (float) Math.sqrt(sx * sx + sy * sy + sz * sz);
+                    if (lenS > EPS) {
+                        float inv = 1f / lenS;
+                        groupTan1[g * 3]     = sx * inv;
+                        groupTan1[g * 3 + 1] = sy * inv;
+                        groupTan1[g * 3 + 2] = sz * inv;
+                    }
+
+                    float tx = groupTan2[g * 3];
+                    float ty = groupTan2[g * 3 + 1];
+                    float tz = groupTan2[g * 3 + 2];
+                    float lenT = (float) Math.sqrt(tx * tx + ty * ty + tz * tz);
+                    if (lenT > EPS) {
+                        float inv = 1f / lenT;
+                        groupTan2[g * 3]     = tx * inv;
+                        groupTan2[g * 3 + 1] = ty * inv;
+                        groupTan2[g * 3 + 2] = tz * inv;
+                    }
+                }
+
+                // ── 5. 输出——逐 corner 从 group 取切线，正交化，手性 ──
+                // TODO 并行加速
+                float[] o    = outSess.getFloats();
+                int     oOff = outSess.offset();
+
+                for (int c = 0; c < ncorners; c++) {
+                    int g = groupIdOfCorner[c];
+
+                    float nx = nrm[nOff + c * 3];
+                    float ny = nrm[nOff + c * 3 + 1];
+                    float nz = nrm[nOff + c * 3 + 2];
+
+                    float tx = groupTan1[g * 3];
+                    float ty = groupTan1[g * 3 + 1];
+                    float tz = groupTan1[g * 3 + 2];
+
+                    float dot = nx * tx + ny * ty + nz * tz;
+                    tx -= nx * dot;
+                    ty -= ny * dot;
+                    tz -= nz * dot;
+
+                    float len = (float) Math.sqrt(tx * tx + ty * ty + tz * tz);
+                    if (len > EPS) {
+                        float inv = 1f / len;
+                        tx *= inv; ty *= inv; tz *= inv;
+                    } else {
+                        tx = 1f; ty = 0f; tz = 0f;
+                    }
+
+                    float cx = ny * tz - nz * ty;
+                    float cy = nz * tx - nx * tz;
+                    float cz = nx * ty - ny * tx;
+
+                    float bx = groupTan2[g * 3];
+                    float by = groupTan2[g * 3 + 1];
+                    float bz = groupTan2[g * 3 + 2];
+
+                    float hand = (cx * bx + cy * by + cz * bz) < 0f ? -1f : 1f;
+
+                    int ob = oOff + c * 4;
+                    o[ob]     = tx;
+                    o[ob + 1] = ty;
+                    o[ob + 2] = tz;
+                    o[ob + 3] = hand;
+                }
             }
-            groupIdOfCorner[tmp[i].cornerIndex] = groupCount;
-        }
-        groupCount++;
-
-        // ── 3. 遍历 triangleIndices 累加 ──
-        float[] groupTan1 = new float[groupCount * 3];
-        float[] groupTan2 = new float[groupCount * 3];
-
-        // TODO 并行加速
-        for (int t = 0; t < ntri; t++) {
-            int ti = triOff + t * 3;
-            int c0 = tri[ti];
-            int c1 = tri[ti + 1];
-            int c2 = tri[ti + 2];
-            accumulateTriangle(c0, c1, c2,
-                    pos, pOff, cv, cvOff, uv, uvOff,
-                    groupIdOfCorner, groupTan1, groupTan2);
-        }
-        // TODO 并行加速
-        // ── 4. 归一化 group ──
-        for (int g = 0; g < groupCount; g++) {
-            float sx = groupTan1[g * 3];
-            float sy = groupTan1[g * 3 + 1];
-            float sz = groupTan1[g * 3 + 2];
-            float lenS = (float) Math.sqrt(sx * sx + sy * sy + sz * sz);
-            if (lenS > EPS) {
-                float inv = 1f / lenS;
-                groupTan1[g * 3]     = sx * inv;
-                groupTan1[g * 3 + 1] = sy * inv;
-                groupTan1[g * 3 + 2] = sz * inv;
-            }
-
-            float tx = groupTan2[g * 3];
-            float ty = groupTan2[g * 3 + 1];
-            float tz = groupTan2[g * 3 + 2];
-            float lenT = (float) Math.sqrt(tx * tx + ty * ty + tz * tz);
-            if (lenT > EPS) {
-                float inv = 1f / lenT;
-                groupTan2[g * 3]     = tx * inv;
-                groupTan2[g * 3 + 1] = ty * inv;
-                groupTan2[g * 3 + 2] = tz * inv;
-            }
-        }
-        // TODO 并行加速
-        // ── 5. 输出——逐 corner 从 group 取切线，正交化，手性 ──
-        float[] o    = out.getFloatsForWrite();
-        int     oOff = (int) out.floatOffset();
-
-        for (int c = 0; c < ncornersI; c++) {
-            int g = groupIdOfCorner[c];
-
-            float nx = nrm[nOff + c * 3];
-            float ny = nrm[nOff + c * 3 + 1];
-            float nz = nrm[nOff + c * 3 + 2];
-
-            float tx = groupTan1[g * 3];
-            float ty = groupTan1[g * 3 + 1];
-            float tz = groupTan1[g * 3 + 2];
-
-            float dot = nx * tx + ny * ty + nz * tz;
-            tx -= nx * dot;
-            ty -= ny * dot;
-            tz -= nz * dot;
-
-            float len = (float) Math.sqrt(tx * tx + ty * ty + tz * tz);
-            if (len > EPS) {
-                float inv = 1f / len;
-                tx *= inv; ty *= inv; tz *= inv;
-            } else {
-                tx = 1f; ty = 0f; tz = 0f;
-            }
-
-            float cx = ny * tz - nz * ty;
-            float cy = nz * tx - nx * tz;
-            float cz = nx * ty - ny * tx;
-
-            float bx = groupTan2[g * 3];
-            float by = groupTan2[g * 3 + 1];
-            float bz = groupTan2[g * 3 + 2];
-
-            float hand = (cx * bx + cy * by + cz * bz) < 0f ? -1f : 1f;
-
-            int ob = oOff + c * 4;
-            o[ob]     = tx;
-            o[ob + 1] = ty;
-            o[ob + 2] = tz;
-            o[ob + 3] = hand;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

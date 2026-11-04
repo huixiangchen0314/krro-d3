@@ -2,6 +2,7 @@ package top.kzre.krro.d3.core.geometry.algo;
 
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.IntArenaView;
 
 /**
  * 切线算法——输出 per-corner 切线，xyz + 手性 w。
@@ -33,7 +34,11 @@ public interface TangentAlgo {
 
     /** 输出元素数——{@code cornerVerts.count() * 4}。 */
     default long count(CopyOnWriteInts cornerVerts) {
-        return cornerVerts.count() * 4L;
+        int count;
+        try (IntArenaView.ArraySession array = cornerVerts.array()) {
+            count = array.count();
+        }
+        return count * 4L;
     }
 
     /**

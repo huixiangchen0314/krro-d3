@@ -1,20 +1,13 @@
 package top.kzre.krro.d3.core.util.cow;
 
+import top.kzre.krro.util.arena.IntArenaView;
+
 import java.nio.IntBuffer;
 
 public interface CopyOnWriteInts extends CopyOnWrite<CopyOnWriteInts> {
-    // ── 元数据 ──
-    long offset();
+    IntArenaView.ArraySession array();
+    IntArenaView.ArraySession arrayForWrite();
+    IntArenaView.BufferSession buffer();
+    IntArenaView.BufferSession bufferForWrite();
 
-    long count();
-
-    // ── 读 ──
-    int[]     getIntsSnapshot();
-    IntBuffer getIntBufferSnapshot();
-
-    // ── 写 ──
-    int[] getIntsForWrite();
-    IntBuffer getIntBufferForWrite();
-
-    long intOffset();
 }

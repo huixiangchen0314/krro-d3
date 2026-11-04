@@ -2,6 +2,7 @@ package top.kzre.krro.d3.core.geometry.algo;
 
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.IntArenaView;
 
 /**
  * 面角位置 gather——把 per-vertex 的 positions 重排为 per-corner 的
@@ -27,7 +28,11 @@ public interface CornerPositionGatherAlgo {
 
     /** 输出元素数——{@code cornerVerts.count() * 3}。 */
     default long count(CopyOnWriteInts cornerVerts) {
-        return cornerVerts.count() * 3L;
+        int count;
+        try (IntArenaView.ArraySession array = cornerVerts.array()) {
+            count = array.count();
+        }
+        return count * 3L;
     }
 
     /**

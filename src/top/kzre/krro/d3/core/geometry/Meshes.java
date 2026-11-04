@@ -95,7 +95,12 @@ public final class Meshes {
                     "float allocation failed: " + bytes + " bytes");
         }
         FloatArenaView view = r.getView();
-        view.floatBuffer().put(data);
+        try (FloatArenaView.BufferSession session = view.buffer()) {
+            session.floatBuffer().put(data);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
         return new DefaultCopyOnWriteFloats(view);
     }
 
@@ -108,7 +113,12 @@ public final class Meshes {
                     "int allocation failed: " + bytes + " bytes");
         }
         IntArenaView view = r.getView();
-        view.intBuffer().put(data);
+        try (IntArenaView.BufferSession session = view.buffer()) {
+            session.intBuffer().put(data);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
         return new DefaultCopyOnWriteInts(view);
     }
 }

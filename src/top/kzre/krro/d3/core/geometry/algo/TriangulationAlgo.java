@@ -2,6 +2,7 @@ package top.kzre.krro.d3.core.geometry.algo;
 
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.IntArenaView;
 
 /**
  * 三角化算法——输出 corner 索引数组，每三个一组构成一个三角形。
@@ -40,14 +41,16 @@ public interface TriangulationAlgo {
      * {@code faceOffsets} 对每个 face 累加 {@code max(0, n - 2)} 的结果。
      */
     default long count(CopyOnWriteInts faceOffsets) {
-        // 默认实现仅支持 2.1G，int 长度限制，如果想流处理更多的顶点，请替换实现， 需要精度开关
-        int[] fo   = faceOffsets.getIntsSnapshot();
-        int   off  = (int) faceOffsets.intOffset();
-        int   faceCount = (int) faceOffsets.count() - 1;
         long  triCount = 0L;
-        for (int f = 0; f < faceCount; f++) {
-            long n = (long) fo[off + f + 1] - fo[off + f];
-            if (n >= 3) triCount += n - 2;
+        try (IntArenaView.ArraySession session = faceOffsets.array()) {
+            int[] fo   = session.getInts();
+            int   off  = session.offset();
+            int   faceCount = session.count() - 1;
+
+            for (int f = 0; f < faceCount; f++) {
+                long n = (long) fo[off + f + 1] - fo[off + f];
+                if (n >= 3) triCount += n - 2;
+            }
         }
         return triCount * 3L;
     }

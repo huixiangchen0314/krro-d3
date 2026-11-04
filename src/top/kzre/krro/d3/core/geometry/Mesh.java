@@ -11,8 +11,8 @@ import java.util.List;
  * <p><b>本质数据</b>：
  * <ul>
  *   <li>{@link #positions()}     —— 顶点位置</li>
- *   <li>{@link #cornerVerts()}   —— 面角 → 顶点</li>
- *   <li>{@link #faceOffsets()}   —— 面 → 面角范围偏移</li>
+ *   <li>{@link #cornerVerts()}   —— 面角 → 顶点 索引表</li>
+ *   <li>{@link #faceOffsets()}   —— 面 → 面角范围偏移, N边形记录N，前缀和为绝对偏移</li>
  *   <li>{@link #cornerUvs()}     —— 面角 UV 通道（多通道）</li>
  *   <li>{@link #edgeEndpoints()} —— 边端点（显式，稳定身份）</li>
  *   <li>{@link #submeshes()}     —— 材质分组</li>
@@ -45,13 +45,19 @@ import java.util.List;
  */
 public final class Mesh implements CopyOnWrite<Mesh> {
 
-    /** 顶点位置。float3——stride 3——长度 = vertCount * 3。 */
+    /**
+     * 顶点位置。float3——stride 3——长度 = vertCount * 3。
+     */
     private final CopyOnWriteFloats positions;
 
-    /** 面角 → 顶点索引。int——stride 1——长度 = cornerCount。 */
+    /**
+     * 面角 → 顶点索引。int——stride 1——长度 = cornerCount。
+     */
     private final CopyOnWriteInts cornerVerts;
 
-    /** 面 → 面角范围偏移。int——stride 1——长度 = faceCount + 1。 */
+    /**
+     * 面 → 面角范围偏移。int——stride 1——长度 = faceCount + 1。
+     */
     private final CopyOnWriteInts faceOffsets;
 
     /**
@@ -68,7 +74,9 @@ public final class Mesh implements CopyOnWrite<Mesh> {
      */
     private final CopyOnWriteInts edgeEndpoints;
 
-    /** 材质分组。ShallowListResource——只持有引用，不拥有 SubMesh。 */
+    /**
+     * 材质分组。ShallowListResource——只持有引用，不拥有 SubMesh。
+     */
     private final CopyOnWriteObject<ShallowListResource<SubMesh>> submeshes;
 
     // ═══════════════════════════════════════════════
@@ -93,37 +101,45 @@ public final class Mesh implements CopyOnWrite<Mesh> {
             throw new IllegalArgumentException("cornerUvs must have at least one channel");
         }
 
-        this.positions     = positions;
-        this.cornerVerts   = cornerVerts;
-        this.faceOffsets   = faceOffsets;
-        this.cornerUvs     = cornerUvs;
+        this.positions = positions;
+        this.cornerVerts = cornerVerts;
+        this.faceOffsets = faceOffsets;
+        this.cornerUvs = cornerUvs;
         this.edgeEndpoints = edgeEndpoints;
-        this.submeshes     = submeshes;
+        this.submeshes = submeshes;
     }
-
-    // ═══════════════════════════════════════════════
-    // 计数
-    // ═══════════════════════════════════════════════
-
-    public long vertCount()    { return positions.count()     / 3; }
-    public long cornerCount()  { return cornerVerts.count(); }
-    public long faceCount()    { return faceOffsets.count()   - 1; }
-    public long edgeCount()    { return edgeEndpoints.count() / 2; }
-    public int  uvChannelCount() { return cornerUvs.getSnapshot().getList().size(); }
 
     // ═══════════════════════════════════════════════
     // 本质访问
     // ═══════════════════════════════════════════════
 
-    public CopyOnWriteFloats positions()     { return positions; }
-    public CopyOnWriteInts cornerVerts()   { return cornerVerts; }
-    public CopyOnWriteInts faceOffsets()   { return faceOffsets; }
-    public CopyOnWriteInts edgeEndpoints() { return edgeEndpoints; }
+    public CopyOnWriteFloats positions() {
+        return positions;
+    }
 
-    public CopyOnWriteObject<ListResource<CopyOnWriteFloats>> cornerUvs() { return cornerUvs; }
-    public CopyOnWriteObject<ShallowListResource<SubMesh>> submeshes()    { return submeshes; }
+    public CopyOnWriteInts cornerVerts() {
+        return cornerVerts;
+    }
 
-    /** 便捷——UV0 通道。 */
+    public CopyOnWriteInts faceOffsets() {
+        return faceOffsets;
+    }
+
+    public CopyOnWriteInts edgeEndpoints() {
+        return edgeEndpoints;
+    }
+
+    public CopyOnWriteObject<ListResource<CopyOnWriteFloats>> cornerUvs() {
+        return cornerUvs;
+    }
+
+    public CopyOnWriteObject<ShallowListResource<SubMesh>> submeshes() {
+        return submeshes;
+    }
+
+    /**
+     * 便捷——UV0 通道。
+     */
     public CopyOnWriteFloats cornerUv0() {
         List<CopyOnWriteFloats> uvs = cornerUvs.getSnapshot().getList();
         if (uvs.isEmpty()) {

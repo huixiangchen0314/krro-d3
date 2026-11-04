@@ -6,6 +6,8 @@ import top.kzre.krro.d3.core.geometry.algo.predicate.EarTestStrategy;
 import top.kzre.krro.d3.core.geometry.algo.predicate.GeometryPredicates;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.FloatArenaView;
+import top.kzre.krro.util.arena.IntArenaView;
 
 import java.util.stream.IntStream;
 
@@ -27,6 +29,12 @@ import java.util.stream.IntStream;
  * {@code faceTriStart[f] * 3} 开始的独立区间，无锁。前缀和阶段串行，
  * O(nfaces)；填充阶段并行，每 face 独立。
  *
+ * <p><b>Session 访问</b>：通过 {@link FloatArenaView.ArraySession} /
+ * {@link IntArenaView.ArraySession} 访问底层数组与偏移。{@code out} 用
+ * {@code arrayForWrite()}（写会话，可能触发 COW 复制）；输入用
+ * {@code array()}（读会话，不触发复制）。会话生命周期由 try-with-resources
+ * 保证——写会话在所有并行任务完成后才关闭。
+ *
  * <p><b>耳检测可替换</b>：{@link EarTestStrategy} 决定
  * “候选耳内是否有其他顶点”的检测方式——默认 {@link BruteForceEarTest}。
  *
@@ -37,9 +45,7 @@ import java.util.stream.IntStream;
  * <p><b>ear clipping 退化回退</b>：如果剩余多边形中找不到任何耳
  * （全部共线或退化），回退到 fan 输出剩余部分——保证输出数量不变。
  *
- * <p><b>直接写底层数组</b>：{@code out.getIntsForWrite()[out.intOffset() + w]}。
- *
- * <p><b>线程契约</b>：{@code getIntsForWrite()} 在并行之前单线程调用；
+ * <p><b>线程契约</b>：{@code getInts()} 在并行之前单线程调用；
  * 并行任务只写 {@code int[]} 的不同区间，无锁安全。{@link EarTester}
  * 是 per-face 的——不同 face 的 {@code earClip} 可以在不同线程上并行。
  */
@@ -73,56 +79,74 @@ public final class MikkTriangulationImpl implements TriangulationAlgo {
         if (faceOffsets == null) throw new NullPointerException("faceOffsets");
         if (out == null)         throw new NullPointerException("out");
 
-        long posCount = positions.count();
-        if (posCount % 3 != 0) {
-            throw new IllegalArgumentException(
-                    "positions count must be multiple of 3, got " + posCount);
-        }
-        if (uv0 != null && uv0.count() % 2 != 0) {
-            throw new IllegalArgumentException(
-                    "uv0 count must be multiple of 2, got " + uv0.count());
-        }
+        try (FloatArenaView.ArraySession posSess = positions.array();
+             IntArenaView.ArraySession  cvSess  = cornerVerts.array();
+             IntArenaView.ArraySession  foSess  = faceOffsets.array()) {
 
-        // ── 读 ──
-        float[] pos   = positions.getFloatsSnapshot();
-        int     pOff  = (int) positions.floatOffset();
-        int[]   cv    = cornerVerts.getIntsSnapshot();
-        int     cvOff = (int) cornerVerts.intOffset();
-        int[]   fo    = faceOffsets.getIntsSnapshot();
-        int     foOff = (int) faceOffsets.intOffset();
-        int     faceCount = (int) faceOffsets.count() - 1;
+            if (posSess.count() % 3 != 0) {
+                throw new IllegalArgumentException(
+                        "positions count must be multiple of 3, got " + posSess.count());
+            }
 
-        float[] uv;
-        int     uvOff;
-        if (uv0 != null) {
-            uv    = uv0.getFloatsSnapshot();
-            uvOff = (int) uv0.floatOffset();
-        } else {
-            uvOff = 0;
-            uv = null;
+            // ── 读快照 + 前缀和（会话生命周期内稳定）──
+            int[] fo    = foSess.getInts();
+            int   foOff = foSess.offset();
+            int   faceCount = foSess.count() - 1;
+
+            int[] faceTriStart = new int[faceCount + 1];
+            for (int f = 0; f < faceCount; f++) {
+                int n = fo[foOff + f + 1] - fo[foOff + f];
+                faceTriStart[f + 1] = faceTriStart[f] + (n >= 3 ? n - 2 : 0);
+            }
+            int triCount = faceTriStart[faceCount];
+
+            // ── 写会话：容量校验 + 写 ──
+            try (IntArenaView.ArraySession outSess = out.arrayForWrite()) {
+                if ((long) triCount * 3L != outSess.count()) {
+                    throw new IllegalStateException(
+                            "triangulation count mismatch: expected " + outSess.count()
+                                    + ", prefix sum gives " + ((long) triCount * 3L));
+                }
+
+                float[] pos   = posSess.getFloats();
+                int     pOff  = posSess.offset();
+                int[]   cv    = cvSess.getInts();
+                int     cvOff = cvSess.offset();
+                int[]   o     = outSess.getInts();
+                int     oOff  = outSess.offset();
+
+                if (uv0 != null) {
+                    try (FloatArenaView.ArraySession uvSess = uv0.array()) {
+                        if (uvSess.count() % 2 != 0) {
+                            throw new IllegalArgumentException(
+                                    "uv0 count must be multiple of 2, got " + uvSess.count());
+                        }
+                        fill(pos, pOff, cv, cvOff, fo, foOff,
+                                uvSess.getFloats(), uvSess.offset(),
+                                o, oOff, faceCount, faceTriStart);
+                    }
+                } else {
+                    fill(pos, pOff, cv, cvOff, fo, foOff,
+                            null, 0, o, oOff, faceCount, faceTriStart);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
+    }
 
-        // ── 阶段 1：前缀和，求得每个面的起始角点位置──
-        int[] faceTriStart = new int[faceCount + 1];
-        for (int f = 0; f < faceCount; f++) {
-            int n = fo[foOff + f + 1] - fo[foOff + f];
-            faceTriStart[f + 1] = faceTriStart[f] + (n >= 3 ? n - 2 : 0);
-        }
-        int triCount = faceTriStart[faceCount];
-
-        if ((long) triCount * 3L != out.count()) {
-            throw new IllegalStateException(
-                    "triangulation count mismatch: expected " + out.count()
-                            + ", prefix sum gives " + (triCount * 3L));
-        }
-
+    /**
+     * 填充阶段——串行或并行。所有数组快照已由调用方从 session 取出，
+     * 本方法不触碰 COW / Arena。并行任务只写 {@code o} 的不同区间。
+     */
+    private void fill(float[] pos, int pOff,
+                      int[] cv, int cvOff,
+                      int[] fo, int foOff,
+                      float[] uv, int uvOff,
+                      int[] o, int oOff,
+                      int faceCount, int[] faceTriStart) {
         if (faceCount == 0) return;
 
-        // ── 取底层数组——并行之前单线程调用 ──
-        int[] o    = out.getIntsForWrite();
-        int   oOff = (int) out.intOffset();
-
-        // ── 阶段 2：填充——串行或并行 ──
         if (faceCount < PARALLEL_THRESHOLD) {
             for (int f = 0; f < faceCount; f++) {
                 int start = fo[foOff + f];

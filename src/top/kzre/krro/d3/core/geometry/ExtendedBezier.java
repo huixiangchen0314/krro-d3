@@ -108,140 +108,140 @@ public final class ExtendedBezier implements CopyOnWrite<ExtendedBezier> {
         discardAll();
     }
 
-    // ═══════════════════════════════════════════════
-    // Bezier 访问——本质数据——读
-    // ═══════════════════════════════════════════════
-
-    public Bezier sharedCurve() { return curve.shared(); }
-
-    public float[]     getPointsSnapshot()      { return curve.points().getFloatsSnapshot(); }
-    public FloatBuffer getPointBufferSnapshot() { return curve.points().getFloatBufferSnapshot(); }
-
-    public float[]     getHandlesSnapshot()      { return curve.handles().getFloatsSnapshot(); }
-    public FloatBuffer getHandleBufferSnapshot() { return curve.handles().getFloatBufferSnapshot(); }
-
-    public int[]     getContinuitiesSnapshot()      { return curve.continuities().getIntsSnapshot(); }
-    public boolean   isClosed()                     { return curve.closed(); }
-
-    public int controlPointCount() {
-        return curve.points().getFloatsSnapshot().length / 3;
-    }
-
-    // ═══════════════════════════════════════════════
-    // Bezier 访问——本质数据——写
-    // ═══════════════════════════════════════════════
-
-    /**
-     * 声明写控制点。
-     *
-     * <p><b>副作用</b>：丢弃全部派生。
-     */
-    public FloatBuffer pointsForWrite() {
-        discardAll();
-        return curve.points().getFloatBufferForWrite();
-    }
-
-    /**
-     * 声明写手柄。
-     *
-     * <p><b>副作用</b>：丢弃全部派生。
-     */
-    public FloatBuffer handlesForWrite() {
-        discardAll();
-        return curve.handles().getFloatBufferForWrite();
-    }
-
-    /**
-     * 声明写连续性约束。
-     *
-     * <p><b>副作用</b>：丢弃全部派生。
-     */
-    public java.nio.IntBuffer continuitiesForWrite() {
-        discardAll();
-        return curve.continuities().getIntBufferForWrite();
-    }
-
-    // ═══════════════════════════════════════════════
-    // 派生数据——读
-    // ═══════════════════════════════════════════════
-
-    /**
-     * 采样点位置。float3[n]。
-     *
-     * <p>依赖：points + handles + continuities + closed + sampleResolution。
-     */
-    public float[] getSamplePositions() {
-        CopyOnWriteFloats c = cachedSamplePositions;
-        if (c != null) return c.getFloatsSnapshot();
-
-        float[] p = BezierSample.compute(curve, sampleResolution);
-        cachedSamplePositions = allocateFloats(p);
-        return p;
-    }
-
-    /**
-     * 采样点切线。float3[n]。
-     *
-     * <p>依赖：points + handles + continuities + closed + sampleResolution。
-     */
-    public float[] getSampleTangents() {
-        CopyOnWriteFloats c = cachedSampleTangents;
-        if (c != null) return c.getFloatsSnapshot();
-
-        float[] t = BezierTangents.compute(curve, sampleResolution);
-        cachedSampleTangents = allocateFloats(t);
-        return t;
-    }
-
-    /**
-     * 包围盒。float[6] = [minX, minY, minZ, maxX, maxY, maxZ]。
-     *
-     * <p>依赖：points + handles + closed（用控制点 + 手柄的保守包围盒）。
-     */
-    public float[] getBounds() {
-        CopyOnWriteFloats c = cachedBounds;
-        if (c != null) return c.getFloatsSnapshot();
-
-        float[] b = BezierBoundsScan.compute(curve);
-        cachedBounds = allocateFloats(b);
-        return b;
-    }
-
-    /**
-     * 累计弧长表。float[n+1]——第 i 项是前 i 段的总弧长。
-     *
-     * <p>依赖：points + handles + continuities + closed + sampleResolution。
-     *
-     * <p>用途：按弧长均匀采样——路径动画。
-     */
-    public float[] getArcLengths() {
-        CopyOnWriteFloats c = cachedArcLengths;
-        if (c != null) return c.getFloatsSnapshot();
-
-        float[] a = BezierArcLength.compute(curve, sampleResolution);
-        cachedArcLengths = allocateFloats(a);
-        return a;
-    }
-
-    // ═══════════════════════════════════════════════
-    // 分配——走 AutoGrow Template
-    // ═══════════════════════════════════════════════
-
-    private CopyOnWriteFloats allocateFloats(float[] data) {
-        int byteSize = data.length * Float.BYTES;
-
-        AllocateResult<FloatArenaView> r = floatTemplate.allocate(byteSize);
-
-        if (r.isFailure()) {
-            throw new IllegalStateException(
-                    "AutoGrow float allocation failed unexpectedly: "
-                            + byteSize + " bytes");
-        }
-
-        FloatArenaView view = r.getView();
-        view.floatBuffer().put(data);
-        return new DefaultCopyOnWriteFloats(view);
-    }
+//    // ═══════════════════════════════════════════════
+//    // Bezier 访问——本质数据——读
+//    // ═══════════════════════════════════════════════
+//
+//    public Bezier sharedCurve() { return curve.shared(); }
+//
+//    public float[]     getPointsSnapshot()      { return curve.points().getFloatsSnapshot(); }
+//    public FloatBuffer getPointBufferSnapshot() { return curve.points().getFloatBufferSnapshot(); }
+//
+//    public float[]     getHandlesSnapshot()      { return curve.handles().getFloatsSnapshot(); }
+//    public FloatBuffer getHandleBufferSnapshot() { return curve.handles().getFloatBufferSnapshot(); }
+//
+//    public int[]     getContinuitiesSnapshot()      { return curve.continuities().getIntsSnapshot(); }
+//    public boolean   isClosed()                     { return curve.closed(); }
+//
+//    public int controlPointCount() {
+//        return curve.points().getFloatsSnapshot().length / 3;
+//    }
+//
+//    // ═══════════════════════════════════════════════
+//    // Bezier 访问——本质数据——写
+//    // ═══════════════════════════════════════════════
+//
+//    /**
+//     * 声明写控制点。
+//     *
+//     * <p><b>副作用</b>：丢弃全部派生。
+//     */
+//    public FloatBuffer pointsForWrite() {
+//        discardAll();
+//        return curve.points().getFloatBufferForWrite();
+//    }
+//
+//    /**
+//     * 声明写手柄。
+//     *
+//     * <p><b>副作用</b>：丢弃全部派生。
+//     */
+//    public FloatBuffer handlesForWrite() {
+//        discardAll();
+//        return curve.handles().getFloatBufferForWrite();
+//    }
+//
+//    /**
+//     * 声明写连续性约束。
+//     *
+//     * <p><b>副作用</b>：丢弃全部派生。
+//     */
+//    public java.nio.IntBuffer continuitiesForWrite() {
+//        discardAll();
+//        return curve.continuities().getIntBufferForWrite();
+//    }
+//
+//    // ═══════════════════════════════════════════════
+//    // 派生数据——读
+//    // ═══════════════════════════════════════════════
+//
+//    /**
+//     * 采样点位置。float3[n]。
+//     *
+//     * <p>依赖：points + handles + continuities + closed + sampleResolution。
+//     */
+//    public float[] getSamplePositions() {
+//        CopyOnWriteFloats c = cachedSamplePositions;
+//        if (c != null) return c.getFloatsSnapshot();
+//
+//        float[] p = BezierSample.compute(curve, sampleResolution);
+//        cachedSamplePositions = allocateFloats(p);
+//        return p;
+//    }
+//
+//    /**
+//     * 采样点切线。float3[n]。
+//     *
+//     * <p>依赖：points + handles + continuities + closed + sampleResolution。
+//     */
+//    public float[] getSampleTangents() {
+//        CopyOnWriteFloats c = cachedSampleTangents;
+//        if (c != null) return c.getFloatsSnapshot();
+//
+//        float[] t = BezierTangents.compute(curve, sampleResolution);
+//        cachedSampleTangents = allocateFloats(t);
+//        return t;
+//    }
+//
+//    /**
+//     * 包围盒。float[6] = [minX, minY, minZ, maxX, maxY, maxZ]。
+//     *
+//     * <p>依赖：points + handles + closed（用控制点 + 手柄的保守包围盒）。
+//     */
+//    public float[] getBounds() {
+//        CopyOnWriteFloats c = cachedBounds;
+//        if (c != null) return c.getFloatsSnapshot();
+//
+//        float[] b = BezierBoundsScan.compute(curve);
+//        cachedBounds = allocateFloats(b);
+//        return b;
+//    }
+//
+//    /**
+//     * 累计弧长表。float[n+1]——第 i 项是前 i 段的总弧长。
+//     *
+//     * <p>依赖：points + handles + continuities + closed + sampleResolution。
+//     *
+//     * <p>用途：按弧长均匀采样——路径动画。
+//     */
+//    public float[] getArcLengths() {
+//        CopyOnWriteFloats c = cachedArcLengths;
+//        if (c != null) return c.getFloatsSnapshot();
+//
+//        float[] a = BezierArcLength.compute(curve, sampleResolution);
+//        cachedArcLengths = allocateFloats(a);
+//        return a;
+//    }
+//
+//    // ═══════════════════════════════════════════════
+//    // 分配——走 AutoGrow Template
+//    // ═══════════════════════════════════════════════
+//
+//    private CopyOnWriteFloats allocateFloats(float[] data) {
+//        int byteSize = data.length * Float.BYTES;
+//
+//        AllocateResult<FloatArenaView> r = floatTemplate.allocate(byteSize);
+//
+//        if (r.isFailure()) {
+//            throw new IllegalStateException(
+//                    "AutoGrow float allocation failed unexpectedly: "
+//                            + byteSize + " bytes");
+//        }
+//
+//        FloatArenaView view = r.getView();
+//        view.floatBuffer().put(data);
+//        return new DefaultCopyOnWriteFloats(view);
+//    }
 
     // ═══════════════════════════════════════════════
     // 丢弃派生

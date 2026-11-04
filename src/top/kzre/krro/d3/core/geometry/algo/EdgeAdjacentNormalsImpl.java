@@ -3,6 +3,8 @@ package top.kzre.krro.d3.core.geometry.algo;
 import top.kzre.krro.d3.core.util.LongIntMap;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.FloatArenaView;
+import top.kzre.krro.util.arena.IntArenaView;
 
 import java.util.Arrays;
 
@@ -21,32 +23,15 @@ import java.util.Arrays;
  * corner 不参与合并——它们的法线无效，合并会污染相邻正常面。输出时
  * 退化 corner 直接写 {@code (0, 1, 0)}。
  *
- * <p><b>非流形边</b>（一条边被 3+ 个 corner 引用）：当前跳过——不合并。
- * 非流形边的处理策略后续决定。正常边（2 个 corner）和边界边（1 个 corner）
- * 不受影响。
- *
- * <p><b>算法</b>：
- * <ol>
- *   <li>逐面 Newell 法线（面积加权），退化面标 {@code (0,1,0)}</li>
- *   <li>corner → face + 退化标记</li>
- *   <li>edge key → edge index 哈希表（从 {@code edgeEndpoints}）</li>
- *   <li>corner → 起始边 index（{@code cornerEdgeStart}）</li>
- *   <li>edge → corner CSR</li>
- *   <li>全局并查集：对每条正常边（2 个 corner），夹角 ≤ 阈值则合并</li>
- *   <li>按根累加面法线（跳过退化 corner）——归一化</li>
- *   <li>赋值：退化 corner 写 {@code (0,1,0)}，非退化 corner 从根取</li>
- * </ol>
- *
  * <p><b>非流形边</b>（一条边被 3+ 个 corner 引用）：<b>不合并</b>——
- * 视为硬边，两侧 corner 法线不连续。
+ * 视为硬边，两侧 corner 法线不连续。非流形边没有唯一的切平面——
+ * “和哪一侧的面平滑”在数学上是歧义的。跳过合并是保守且确定的行为：
+ * 不猜测用户意图，把“清理非流形边”留给编辑流程。
  *
- * <p>非流形边没有唯一的切平面——“和哪一侧的面平滑”在数学上是歧义的。
- * 跳过合并是保守且确定的行为：不猜测用户意图，把“清理非流形边”留给
- * 编辑流程。用户如果希望非流形边平滑，应该先清理拓扑。
- *
- * <p><b>输出</b>：{@code float3[ncorners]}——直接写 {@code out} 的底层数组。
- *
- * <p><b>edgeEndpoints</b>：必须非 null——边邻接需要它。
+ * <p><b>Session 访问</b>：通过 {@link FloatArenaView.ArraySession} /
+ * {@link IntArenaView.ArraySession} 访问底层数组与偏移——会话生命周期
+ * 由 try-with-resources 保证。{@code out} 用 {@code arrayForWrite()}
+ * （写会话，可能触发 COW 复制）；输入用 {@code array()}（读会话，不触发复制）。
  *
  * <p><b>线程契约</b>：只读输入，写 {@code out}。ThreadLocal 缓冲按线程隔离。
  */
@@ -96,191 +81,205 @@ public final class EdgeAdjacentNormalsImpl implements CornerNormalsAlgo {
                     "angleThresholdRadians must be >= 0, got " + angleThresholdRadians);
         }
 
-        long posCount = positions.count();
-        if (posCount % 3 != 0) {
-            throw new IllegalArgumentException(
-                    "positions count must be multiple of 3, got " + posCount);
-        }
-        long edgeCount2 = edgeEndpoints.count();
-        if (edgeCount2 % 2 != 0) {
-            throw new IllegalArgumentException(
-                    "edgeEndpoints count must be multiple of 2, got " + edgeCount2);
-        }
+        // 四个读会话 + 写会话。读会话不触发 COW 复制，写会话可能触发。
+        // 空输入时提前返回，不打开写会话。
+        try (FloatArenaView.ArraySession posSess = positions.array();
+             IntArenaView.ArraySession  cvSess  = cornerVerts.array();
+             IntArenaView.ArraySession  foSess  = faceOffsets.array();
+             IntArenaView.ArraySession  eeSess  = edgeEndpoints.array()) {
 
-        long ncorners = cornerVerts.count();
-        long needed   = ncorners * 3L;
-        if (out.count() < needed) {
-            throw new IllegalArgumentException(
-                    "out needs " + needed + " floats, has " + out.count());
-        }
-        if (ncorners == 0) return;
-
-        // ── 读 ──
-        float[] pos   = positions.getFloatsSnapshot();
-        int     pOff  = (int) positions.floatOffset();
-        int[]   cv    = cornerVerts.getIntsSnapshot();
-        int     cvOff = (int) cornerVerts.intOffset();
-        int[]   fo    = faceOffsets.getIntsSnapshot();
-        int     foOff = (int) faceOffsets.intOffset();
-        int[]   ee    = edgeEndpoints.getIntsSnapshot();
-        int     eeOff = (int) edgeEndpoints.intOffset();
-
-        int ncornersI = (int) ncorners;
-        int faceCount = (int) faceOffsets.count() - 1;
-        int edgeCount = (int) (edgeCount2 / 2);
-
-        // ── 1. 面法线（Newell）──
-        float[] faceNormals = getFaceNormalsBuffer(faceCount * 3);
-        computeFaceNormals(fo, foOff, cv, cvOff, pos, pOff, faceCount, faceNormals);
-
-        // ── 2. corner → face + 退化标记 ──
-        int[]  cornerFace = getCornerFaceBuffer(ncornersI);
-        byte[] degenerate = getDegenerateBuffer(ncornersI);
-        Arrays.fill(degenerate, 0, ncornersI, (byte) 0);
-
-        for (int f = 0; f < faceCount; f++) {
-            int start = fo[foOff + f];
-            int end   = fo[foOff + f + 1];
-            boolean degen = (end - start) < 3;
-            for (int c = start; c < end; c++) {
-                cornerFace[c] = f;
-                if (degen) degenerate[c] = 1;
+            int posCount = posSess.count();
+            if (posCount % 3 != 0) {
+                throw new IllegalArgumentException(
+                        "positions count must be multiple of 3, got " + posCount);
             }
-        }
-
-        // ── 3. edge key → edge index 哈希表 ──
-        LongIntMap edgeMap = EDGE_MAP.get();
-        edgeMap.ensureCapacity(edgeCount);
-        for (int e = 0; e < edgeCount; e++) {
-            int  v0  = ee[eeOff + e * 2];
-            int  v1  = ee[eeOff + e * 2 + 1];
-            int  a   = v0 < v1 ? v0 : v1;
-            int  b   = v0 < v1 ? v1 : v0;
-            long key = ((long) a << 32) | (b & 0xFFFFFFFFL);
-            edgeMap.put(key, e);
-        }
-
-        // ── 4. corner → 起始边 index ──
-        int[] cornerEdgeStart = getCornerEdgeStartBuffer(ncornersI);
-        for (int f = 0; f < faceCount; f++) {
-            int start = fo[foOff + f];
-            int n     = fo[foOff + f + 1] - start;
-            if (n < 2) continue;
-            for (int i = 0; i < n; i++) {
-                int c     = start + i;
-                int vCurr = cv[cvOff + c];
-                int vNext = cv[cvOff + start + (i + 1) % n];
-                int a     = vCurr < vNext ? vCurr : vNext;
-                int b     = vCurr < vNext ? vNext : vCurr;
-                long key  = ((long) a << 32) | (b & 0xFFFFFFFFL);
-                cornerEdgeStart[c] = edgeMap.get(key);
+            int edgeCount2 = eeSess.count();
+            if (edgeCount2 % 2 != 0) {
+                throw new IllegalArgumentException(
+                        "edgeEndpoints count must be multiple of 2, got " + edgeCount2);
             }
-        }
 
-        // ── 5. edge → corner CSR ──
-        int[] edgeCornerOffset = getEdgeCornerOffsetBuffer(edgeCount + 1);
-        Arrays.fill(edgeCornerOffset, 0, edgeCount + 1, 0);
-        for (int c = 0; c < ncornersI; c++) {
-            int e = cornerEdgeStart[c];
-            if (e >= 0) edgeCornerOffset[e + 1]++;
-        }
-        for (int e = 1; e <= edgeCount; e++) {
-            edgeCornerOffset[e] += edgeCornerOffset[e - 1];
-        }
-        int[] edgeCorners  = getEdgeCornersBuffer(ncornersI);
-        int[] edgeWritePos = getEdgeWritePosBuffer(edgeCount);
-        System.arraycopy(edgeCornerOffset, 0, edgeWritePos, 0, edgeCount);
-        for (int c = 0; c < ncornersI; c++) {
-            int e = cornerEdgeStart[c];
-            if (e >= 0) edgeCorners[edgeWritePos[e]++] = c;
-        }
+            int ncorners = cvSess.count();
+            if (ncorners == 0) return;
 
-        // ── 6. 全局并查集 ──
-        float cosThreshold = (float) Math.cos(angleThresholdRadians);
+            long needed = (long) ncorners * 3L;
 
-        int[] parent = getUnionParentBuffer(ncornersI);
-        for (int c = 0; c < ncornersI; c++) parent[c] = c;
+            // ── 读快照（会话生命周期内稳定）──
+            float[] pos    = posSess.getFloats();
+            int     pOff   = posSess.offset();
+            int[]   cv     = cvSess.getInts();
+            int     cvOff  = cvSess.offset();
+            int[]   fo     = foSess.getInts();
+            int     foOff  = foSess.offset();
+            int[]   ee     = eeSess.getInts();
+            int     eeOff  = eeSess.offset();
 
-        for (int e = 0; e < edgeCount; e++) {
-            int eStart = edgeCornerOffset[e];
-            int eEnd   = edgeCornerOffset[e + 1];
+            int faceCount = foSess.count() - 1;
+            int edgeCount = edgeCount2 / 2;
 
-            // 边界边（1 个 corner）没有对——跳过
-            // 非流形边（3+ 个 corner）——总是跳过，大部分情况用户总是想清理非流形边的。
-            if (eEnd - eStart != 2) continue;
+            // ── 写会话：容量检查 + 写 ──
+            try (FloatArenaView.ArraySession outSess = out.arrayForWrite()) {
+                if (outSess.count() < needed) {
+                    throw new IllegalArgumentException(
+                            "out needs " + needed + " floats, has " + outSess.count());
+                }
 
-            int ci = edgeCorners[eStart];
-            int cj = edgeCorners[eStart + 1];
+                // ── 1. 面法线（Newell）──
+                float[] faceNormals = getFaceNormalsBuffer(faceCount * 3);
+                computeFaceNormals(fo, foOff, cv, cvOff, pos, pOff, faceCount, faceNormals);
 
-            // 退化面 corner 不参与合并
-            if (degenerate[ci] != 0 || degenerate[cj] != 0) continue;
+                // ── 2. corner → face + 退化标记 ──
+                int[]  cornerFace = getCornerFaceBuffer(ncorners);
+                byte[] degenerate = getDegenerateBuffer(ncorners);
+                Arrays.fill(degenerate, 0, ncorners, (byte) 0);
 
-            int fi = cornerFace[ci];
-            int fj = cornerFace[cj];
+                for (int f = 0; f < faceCount; f++) {
+                    int start = fo[foOff + f];
+                    int end   = fo[foOff + f + 1];
+                    boolean degen = (end - start) < 3;
+                    for (int c = start; c < end; c++) {
+                        cornerFace[c] = f;
+                        if (degen) degenerate[c] = 1;
+                    }
+                }
 
-            float dot = faceNormals[fi * 3]     * faceNormals[fj * 3]
-                    + faceNormals[fi * 3 + 1] * faceNormals[fj * 3 + 1]
-                    + faceNormals[fi * 3 + 2] * faceNormals[fj * 3 + 2];
+                // ── 3. edge key → edge index 哈希表 ──
+                LongIntMap edgeMap = EDGE_MAP.get();
+                edgeMap.ensureCapacity(edgeCount);
+                for (int e = 0; e < edgeCount; e++) {
+                    int  v0  = ee[eeOff + e * 2];
+                    int  v1  = ee[eeOff + e * 2 + 1];
+                    int  a   = v0 < v1 ? v0 : v1;
+                    int  b   = v0 < v1 ? v1 : v0;
+                    long key = ((long) a << 32) | (b & 0xFFFFFFFFL);
+                    edgeMap.put(key, e);
+                }
 
-            if (dot > cosThreshold) {
-                int ri = find(parent, ci);
-                int rj = find(parent, cj);
-                if (ri != rj) parent[ri] = rj;
+                // ── 4. corner → 起始边 index ──
+                int[] cornerEdgeStart = getCornerEdgeStartBuffer(ncorners);
+                for (int f = 0; f < faceCount; f++) {
+                    int start = fo[foOff + f];
+                    int n     = fo[foOff + f + 1] - start;
+                    if (n < 2) continue;
+                    for (int i = 0; i < n; i++) {
+                        int c     = start + i;
+                        int vCurr = cv[cvOff + c];
+                        int vNext = cv[cvOff + start + (i + 1) % n];
+                        int a     = vCurr < vNext ? vCurr : vNext;
+                        int b     = vCurr < vNext ? vNext : vCurr;
+                        long key  = ((long) a << 32) | (b & 0xFFFFFFFFL);
+                        cornerEdgeStart[c] = edgeMap.get(key);
+                    }
+                }
+
+                // ── 5. edge → corner CSR ──
+                int[] edgeCornerOffset = getEdgeCornerOffsetBuffer(edgeCount + 1);
+                Arrays.fill(edgeCornerOffset, 0, edgeCount + 1, 0);
+                for (int c = 0; c < ncorners; c++) {
+                    int e = cornerEdgeStart[c];
+                    if (e >= 0) edgeCornerOffset[e + 1]++;
+                }
+                for (int e = 1; e <= edgeCount; e++) {
+                    edgeCornerOffset[e] += edgeCornerOffset[e - 1];
+                }
+                int[] edgeCorners  = getEdgeCornersBuffer(ncorners);
+                int[] edgeWritePos = getEdgeWritePosBuffer(edgeCount);
+                System.arraycopy(edgeCornerOffset, 0, edgeWritePos, 0, edgeCount);
+                for (int c = 0; c < ncorners; c++) {
+                    int e = cornerEdgeStart[c];
+                    if (e >= 0) edgeCorners[edgeWritePos[e]++] = c;
+                }
+
+                // ── 6. 全局并查集 ──
+                float cosThreshold = (float) Math.cos(angleThresholdRadians);
+
+                int[] parent = getUnionParentBuffer(ncorners);
+                for (int c = 0; c < ncorners; c++) parent[c] = c;
+
+                for (int e = 0; e < edgeCount; e++) {
+                    int eStart = edgeCornerOffset[e];
+                    int eEnd   = edgeCornerOffset[e + 1];
+
+                    // 边界边（1 个 corner）没有对——跳过
+                    // 非流形边（3+ 个 corner）——总是跳过，大部分情况用户总是想清理非流形边的。
+                    if (eEnd - eStart != 2) continue;
+
+                    int ci = edgeCorners[eStart];
+                    int cj = edgeCorners[eStart + 1];
+
+                    // 退化面 corner 不参与合并
+                    if (degenerate[ci] != 0 || degenerate[cj] != 0) continue;
+
+                    int fi = cornerFace[ci];
+                    int fj = cornerFace[cj];
+
+                    float dot = faceNormals[fi * 3]     * faceNormals[fj * 3]
+                            + faceNormals[fi * 3 + 1] * faceNormals[fj * 3 + 1]
+                            + faceNormals[fi * 3 + 2] * faceNormals[fj * 3 + 2];
+
+                    if (dot > cosThreshold) {
+                        int ri = find(parent, ci);
+                        int rj = find(parent, cj);
+                        if (ri != rj) parent[ri] = rj;
+                    }
+                }
+
+                // ── 7. 按根累加面法线（跳过退化 corner）──
+                float[] accum = getUnionAccumBuffer(ncorners * 3);
+                Arrays.fill(accum, 0, ncorners * 3, 0f);
+
+                for (int c = 0; c < ncorners; c++) {
+                    if (degenerate[c] != 0) continue;
+                    int fi   = cornerFace[c];
+                    int root = find(parent, c);
+                    accum[root * 3]     += faceNormals[fi * 3];
+                    accum[root * 3 + 1] += faceNormals[fi * 3 + 1];
+                    accum[root * 3 + 2] += faceNormals[fi * 3 + 2];
+                }
+
+                // ── 8. 归一化根（跳过退化 corner）──
+                for (int c = 0; c < ncorners; c++) {
+                    if (degenerate[c] != 0) continue;
+                    if (parent[c] != c) continue;
+
+                    float x   = accum[c * 3];
+                    float y   = accum[c * 3 + 1];
+                    float z   = accum[c * 3 + 2];
+                    float len = (float) Math.sqrt(x * x + y * y + z * z);
+
+                    if (len > 1e-8f) {
+                        float inv = 1f / len;
+                        accum[c * 3]     = x * inv;
+                        accum[c * 3 + 1] = y * inv;
+                        accum[c * 3 + 2] = z * inv;
+                    } else {
+                        accum[c * 3]     = 0f;
+                        accum[c * 3 + 1] = 1f;
+                        accum[c * 3 + 2] = 0f;
+                    }
+                }
+
+                // ── 9. 赋值 ──
+                float[] o    = outSess.getFloats();
+                int     oOff = outSess.offset();
+
+                for (int c = 0; c < ncorners; c++) {
+                    int cb = oOff + c * 3;
+                    if (degenerate[c] != 0) {
+                        // 退化面 corner——直接 (0, 1, 0)
+                        o[cb]     = 0f;
+                        o[cb + 1] = 1f;
+                        o[cb + 2] = 0f;
+                    } else {
+                        int root = find(parent, c);
+                        o[cb]     = accum[root * 3];
+                        o[cb + 1] = accum[root * 3 + 1];
+                        o[cb + 2] = accum[root * 3 + 2];
+                    }
+                }
             }
-        }
-
-        // ── 7. 按根累加面法线（跳过退化 corner）──
-        float[] accum = getUnionAccumBuffer(ncornersI * 3);
-        Arrays.fill(accum, 0, ncornersI * 3, 0f);
-
-        for (int c = 0; c < ncornersI; c++) {
-            if (degenerate[c] != 0) continue;
-            int fi   = cornerFace[c];
-            int root = find(parent, c);
-            accum[root * 3]     += faceNormals[fi * 3];
-            accum[root * 3 + 1] += faceNormals[fi * 3 + 1];
-            accum[root * 3 + 2] += faceNormals[fi * 3 + 2];
-        }
-
-        // ── 8. 归一化根（跳过退化 corner）──
-        for (int c = 0; c < ncornersI; c++) {
-            if (degenerate[c] != 0) continue;
-            if (parent[c] != c) continue;
-
-            float x   = accum[c * 3];
-            float y   = accum[c * 3 + 1];
-            float z   = accum[c * 3 + 2];
-            float len = (float) Math.sqrt(x * x + y * y + z * z);
-
-            if (len > 1e-8f) {
-                float inv = 1f / len;
-                accum[c * 3]     = x * inv;
-                accum[c * 3 + 1] = y * inv;
-                accum[c * 3 + 2] = z * inv;
-            } else {
-                accum[c * 3]     = 0f;
-                accum[c * 3 + 1] = 1f;
-                accum[c * 3 + 2] = 0f;
-            }
-        }
-
-        // ── 9. 赋值 ──
-        float[] o    = out.getFloatsForWrite();
-        int     oOff = (int) out.floatOffset();
-
-        for (int c = 0; c < ncornersI; c++) {
-            int cb = oOff + c * 3;
-            if (degenerate[c] != 0) {
-                // 退化面 corner——直接 (0, 1, 0)
-                o[cb]     = 0f;
-                o[cb + 1] = 1f;
-                o[cb + 2] = 0f;
-            } else {
-                int root = find(parent, c);
-                o[cb]     = accum[root * 3];
-                o[cb + 1] = accum[root * 3 + 1];
-                o[cb + 2] = accum[root * 3 + 2];
-            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

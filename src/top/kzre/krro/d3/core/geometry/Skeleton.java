@@ -105,9 +105,9 @@ public final class Skeleton implements CopyOnWrite<Skeleton> {
     }
 
     /** 获取父骨骼索引——-1 表示根。 */
-    public int parentIndex(int index) {
-        return parentIndices.getIntsSnapshot()[index];
-    }
+//    public int parentIndex(int index) {
+//        return parentIndices.getIntsSnapshot()[index];
+//    }
 
     // ═══════════════════════════════════════════════
     // 共享

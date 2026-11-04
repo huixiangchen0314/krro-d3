@@ -2,6 +2,8 @@ package top.kzre.krro.d3.core.geometry.algo;
 
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.FloatArenaView;
+import top.kzre.krro.util.arena.IntArenaView;
 
 /**
  * 面 AABB——逐面扫描其 corner 的顶点位置，求 min / max。
@@ -9,8 +11,10 @@ import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
  * <p><b>输出</b>：{@code float6[nfaces]}——每个 face
  * {@code [minX, minY, minZ, maxX, maxY, maxZ]}。
  *
- * <p><b>直接写底层数组</b>：{@code out.getFloatsForWrite()[out.floatOffset() + w]}，
- * 不经过 {@code FloatBuffer}，不碰 {@code ArenaView}。
+ * <p><b>Session 访问</b>：通过 {@link FloatArenaView.ArraySession} /
+ * {@link IntArenaView.ArraySession} 访问底层数组与偏移——会话生命周期
+ * 由 try-with-resources 保证。{@code out} 用 {@code arrayForWrite()}
+ * （写会话，可能触发 COW 复制）；输入用 {@code array()}（读会话，不触发复制）。
  *
  * <p><b>退化面</b>（{@code start >= end}）：写入
  * {@code [+inf, +inf, +inf, -inf, -inf, -inf]}——表示空包围盒，
@@ -34,91 +38,106 @@ public final class FaceAabbScanImpl implements FaceAabbAlgo {
         if (faceOffsets == null) throw new NullPointerException("faceOffsets");
         if (out == null)         throw new NullPointerException("out");
 
-        long posCount = positions.count();
-        if (posCount % 3 != 0) {
-            throw new IllegalArgumentException(
-                    "positions count must be multiple of 3, got " + posCount);
-        }
-        if (faceOffsets.count() < 1) {
-            throw new IllegalArgumentException(
-                    "faceOffsets count must be >= 1, got " + faceOffsets.count());
-        }
+        try (FloatArenaView.ArraySession posSess = positions.array();
+             IntArenaView.ArraySession  cvSess  = cornerVerts.array();
+             IntArenaView.ArraySession  foSess  = faceOffsets.array()) {
 
-        int[] fo    = faceOffsets.getIntsSnapshot();
-        int   foOff = (int) faceOffsets.intOffset();
-        int   faceCount = (int) faceOffsets.count() - 1;
-
-        // 容量校验——必须在 ForWrite 之前
-        long needed = (long) faceCount * 6L;
-        if (out.count() < needed) {
-            throw new IllegalArgumentException(
-                    "out needs " + needed + " floats, has " + out.count());
-        }
-
-        // ── 读 ──
-        float[] pos = positions.getFloatsSnapshot();
-        int     pOff = (int) positions.floatOffset();
-        int[]   cv   = cornerVerts.getIntsSnapshot();
-        int     cvOff = (int) cornerVerts.intOffset();
-
-        // ── 写——先 ForWrite，再取 offset ──
-        float[] o    = out.getFloatsForWrite();
-        int     oOff = (int) out.floatOffset();
-
-        int w = oOff;
-        for (int f = 0; f < faceCount; f++) {
-            int start = fo[foOff + f];
-            int end   = fo[foOff + f + 1];
-
-            if (start >= end) {
-                o[w++] = Float.POSITIVE_INFINITY;
-                o[w++] = Float.POSITIVE_INFINITY;
-                o[w++] = Float.POSITIVE_INFINITY;
-                o[w++] = Float.NEGATIVE_INFINITY;
-                o[w++] = Float.NEGATIVE_INFINITY;
-                o[w++] = Float.NEGATIVE_INFINITY;
-                continue;
+            int posCount = posSess.count();
+            if (posCount % 3 != 0) {
+                throw new IllegalArgumentException(
+                        "positions count must be multiple of 3, got " + posCount);
             }
-
-            int v0 = cv[cvOff + start];
-            int b0 = pOff + v0 * 3;
-
-            float mnx = pos[b0];
-            float mny = pos[b0 + 1];
-            float mnz = pos[b0 + 2];
-            float mxx = mnx;
-            float mxy = mny;
-            float mxz = mnz;
-
-            for (int c = start + 1; c < end; c++) {
-                int v = cv[cvOff + c];
-                int b = pOff + v * 3;
-
-                float x = pos[b];
-                float y = pos[b + 1];
-                float z = pos[b + 2];
-
-                if (x < mnx) mnx = x;
-                if (y < mny) mny = y;
-                if (z < mnz) mnz = z;
-                if (x > mxx) mxx = x;
-                if (y > mxy) mxy = y;
-                if (z > mxz) mxz = z;
+            int foCount = foSess.count();
+            if (foCount < 1) {
+                throw new IllegalArgumentException(
+                        "faceOffsets count must be >= 1, got " + foCount);
             }
+            int faceCount = foCount - 1;
 
-            o[w++] = mnx;
-            o[w++] = mny;
-            o[w++] = mnz;
-            o[w++] = mxx;
-            o[w++] = mxy;
-            o[w++] = mxz;
-        }
+            long needed = (long) faceCount * 6L;
 
-        long written = (long) w - oOff;
-        if (written != out.count()) {
-            throw new IllegalStateException(
-                    "faceAabbs count mismatch: expected " + out.count()
-                            + ", wrote " + written);
+            // ── 读快照（会话生命周期内稳定）──
+            int[] fo    = foSess.getInts();
+            int   foOff = foSess.offset();
+
+            float[] pos   = posSess.getFloats();
+            int     pOff  = posSess.offset();
+            int[]   cv    = cvSess.getInts();
+            int     cvOff = cvSess.offset();
+
+            // ── 写会话：容量校验 + 写 ──
+            try (FloatArenaView.ArraySession outSess = out.arrayForWrite()) {
+                if (outSess.count() < needed) {
+                    throw new IllegalArgumentException(
+                            "out needs " + needed + " floats, has " + outSess.count());
+                }
+
+                float[] o    = outSess.getFloats();
+                int     oOff = outSess.offset();
+
+                int w = oOff;
+                for (int f = 0; f < faceCount; f++) {
+                    int start = fo[foOff + f];
+                    int end   = fo[foOff + f + 1];
+
+                    if (start >= end) {
+                        o[w++] = Float.POSITIVE_INFINITY;
+                        o[w++] = Float.POSITIVE_INFINITY;
+                        o[w++] = Float.POSITIVE_INFINITY;
+                        o[w++] = Float.NEGATIVE_INFINITY;
+                        o[w++] = Float.NEGATIVE_INFINITY;
+                        o[w++] = Float.NEGATIVE_INFINITY;
+                        continue;
+                    }
+
+                    int v0 = cv[cvOff + start];
+                    int b0 = pOff + v0 * 3;
+
+                    float mnx = pos[b0];
+                    float mny = pos[b0 + 1];
+                    float mnz = pos[b0 + 2];
+                    float mxx = mnx;
+                    float mxy = mny;
+                    float mxz = mnz;
+
+                    for (int c = start + 1; c < end; c++) {
+                        int v = cv[cvOff + c];
+                        int b = pOff + v * 3;
+
+                        float x = pos[b];
+                        float y = pos[b + 1];
+                        float z = pos[b + 2];
+
+                        if (x < mnx) mnx = x;
+                        if (y < mny) mny = y;
+                        if (z < mnz) mnz = z;
+                        if (x > mxx) mxx = x;
+                        if (y > mxy) mxy = y;
+                        if (z > mxz) mxz = z;
+                    }
+
+                    o[w++] = mnx;
+                    o[w++] = mny;
+                    o[w++] = mnz;
+                    o[w++] = mxx;
+                    o[w++] = mxy;
+                    o[w++] = mxz;
+                }
+
+                // out 可能大于 needed（视图容量大于需求）——只校验写入量不超过容量，
+                // 不强制等于 count。原实现要求 written == out.count() 是过度约束：
+                // out 的视图可以比 faceCount * 6 大，多余部分不该视为错误。
+                long written = (long) w - oOff;
+                if (written > outSess.count()) {
+                    throw new IllegalStateException(
+                            "faceAabbs overflow: wrote " + written
+                                    + ", capacity " + outSess.count());
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }

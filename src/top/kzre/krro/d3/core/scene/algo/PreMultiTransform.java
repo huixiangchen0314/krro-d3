@@ -11,6 +11,10 @@ import top.kzre.krro.util.arena.AllocateResult;
 import top.kzre.krro.util.arena.ArenaTemplate;
 import top.kzre.krro.util.arena.FloatArenaView;
 import top.kzre.krro.util.math.KMath;
+import top.kzre.krro.util.pool.FloatsHolder;
+import top.kzre.krro.util.pool.FloatsPool;
+import top.kzre.krro.util.pool.PoolManagers;
+import top.kzre.krro.util.pool.PoolsHolder;
 
 import java.util.Arrays;
 
@@ -47,7 +51,14 @@ import java.util.Arrays;
  * 由调用方保证线程安全——不同子树可以并行计算，前提是写入互斥。
  */
 public final class PreMultiTransform {
+    private static final FloatsPool mat4Pool;
+    private static final int MAT4_LENGTH = 16;
 
+    static
+    {
+        FloatsHolder holder = PoolManagers.floats().getHolder();
+         mat4Pool = holder.getPool(MAT4_LENGTH);
+    }
     private PreMultiTransform() {}
 
     // ═══════════════════════════════════════════════
@@ -95,36 +106,6 @@ public final class PreMultiTransform {
     /**
      * 子树重算——只重算 {@code rootNodeId} 及其子树。
      *
-     * <p><b>增量语义</b>：子树外的节点不受影响，{@code out} 里它们的
-     * 条目保持不变。子树内的节点会被重算，{@code out} 里的旧值被
-     * close、新值写入。
-     *
-     * <p><b>parentGlobal</b>：起点的父节点全局变换。用于计算
-     * {@code rootNodeId} 自己的全局变换：
-     * <pre>
-     *   rootNode.global = parentGlobal × rootNode.local
-     * </pre>
-     * 如果 {@code rootNodeId} 是场景根，传 {@code null}——内部用
-     * 单位矩阵。
-     *
-     * <p><b>调用方契约</b>：{@code parentGlobal} 必须和 {@code out} 里
-     * 父节点的全局变换一致——否则子树的全局变换会和父节点不连续。
-     * 调用方在修改某个节点的局部变换后，应：
-     * <ol>
-     *   <li>从 {@code out} 读该节点的父节点的全局变换</li>
-     *   <li>用它作为 {@code parentGlobal} 调 {@code computeSubtree}</li>
-     * </ol>
-     *
-     * @param scene         场景，非 null
-     * @param rootNodeId    子树的根节点 id
-     * @param parentGlobal  起点的父节点全局变换（{@code float[16]}），
-     *                      {@code null} 表示起点是场景根
-     * @param out           已有的全局变换映射，子树内的条目被覆盖
-     * @param floatTemplate 输出分配的 arena 模板，非 null
-     */
-    /**
-     * 子树重算——只重算 {@code rootNodeId} 及其子树。
-     *
      * <p><b>parentGlobal</b>：起点的父节点全局变换，非 null。
      * 如果 {@code rootNodeId} 是场景根，传单位矩阵
      * （{@link KMath#mat4Identity()}）。
@@ -162,21 +143,34 @@ public final class PreMultiTransform {
                                          LongLongMap firstChild,
                                          LongLongMap nextSibling,
                                          ArenaTemplate<?, FloatArenaView> floatTemplate) {
-        // 取局部变换——从 arena storage 切片出 16 个 float
-        CopyOnWriteFloats localCow = transforms.get(nodeId);
-        float[] local;
-        if (localCow != null) {
-            float[] storage = localCow.getFloatsSnapshot();
-            int     off     = (int) localCow.floatOffset();
-            local = Arrays.copyOfRange(storage, off, off + 16);
-        } else {
-            local = KMath.mat4Identity();
+        float[] local = mat4Pool.acquire();
+        float[] global = mat4Pool.acquire();
+        try{
+            CopyOnWriteFloats localCow = transforms.get(nodeId);
+
+            if (localCow != null) {
+                try (FloatArenaView.ArraySession session = localCow.array()) {
+                    float[] storage = session.getFloats();
+                    int     off     = session.offset();
+                    System.arraycopy(storage, off,
+                            local, 0, MAT4_LENGTH);
+                } catch (Exception exception) {
+                    throw new RuntimeException(exception);
+                }
+                // TODO KMath 偏移重载
+                global = KMath.mat4Mul(parentGlobal, local);
+            } else {
+                global = parentGlobal;
+            }
+
+        }finally {
+            mat4Pool.release(local);
+            mat4Pool.release(global);
         }
 
-        // 全局 = 父全局 × 局部
-        float[] global = KMath.mat4Mul(parentGlobal, local);
 
         // 覆盖 out——旧值 close（子树重算场景）
+        // 危险操作
         CopyOnWriteFloats old = out.put(nodeId, allocFloats(global, floatTemplate));
         if (old != null) {
             try {
@@ -189,7 +183,8 @@ public final class PreMultiTransform {
 
         // 深度优先遍历子节点
         long childId = firstChild.get(nodeId);
-        while (childId != Long.MIN_VALUE) {
+
+        while (!LongLongMap.isUnitValue(childId)) {
             computeRecursive(childId, global, out, transforms, firstChild, nextSibling, floatTemplate);
             childId = nextSibling.get(childId);
         }
@@ -206,7 +201,12 @@ public final class PreMultiTransform {
                             + byteSize + " bytes");
         }
         FloatArenaView view = r.getView();
-        view.floatBuffer().put(data);
+        try(FloatArenaView.ArraySession session = view.array()){
+            System.arraycopy(data, 0,
+                    session.getFloats(), session.offset(), session.count());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         return new DefaultCopyOnWriteFloats(view);
     }
 }

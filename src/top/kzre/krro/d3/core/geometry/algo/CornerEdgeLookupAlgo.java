@@ -1,6 +1,7 @@
 package top.kzre.krro.d3.core.geometry.algo;
 
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.IntArenaView;
 
 /**
  * 面角→边查表——每个 corner 对应哪条边。
@@ -26,7 +27,11 @@ public interface CornerEdgeLookupAlgo {
 
     /** 输出元素数——{@code cornerVerts.count()}。 */
     default long count(CopyOnWriteInts cornerVerts) {
-        return cornerVerts.count();
+        int count;
+        try (IntArenaView.ArraySession array = cornerVerts.array()) {
+            count = array.count();
+        }
+        return count;
     }
 
     /**

@@ -40,56 +40,6 @@ public final class DefaultCopyOnWriteFloats implements CopyOnWriteFloats {
         this.data = data;
     }
 
-    // ═══════════════════════════════════════════════
-    // 元数据——只读
-    // ═══════════════════════════════════════════════
-
-    @Override
-    public long offset() { return data.offset(); }
-    @Override
-    public long count()  { return data.count(); }
-
-    // ═══════════════════════════════════════════════
-    // 只读——不触发 COW
-    // ═══════════════════════════════════════════════
-
-    @Override
-    public float[] getFloatsSnapshot() {
-        return data.getFloats();
-    }
-
-    @Override
-    public FloatBuffer getFloatBufferSnapshot() {
-        return data.floatBuffer();
-    }
-
-    // ═══════════════════════════════════════════════
-    // 写——触发 COW
-    // ═══════════════════════════════════════════════
-    @Override
-    public float[] getFloatsForWrite() {
-        synchronized (lock) {
-            ensureWritableLocked();
-            return data.getFloats();
-        }
-    }
-
-    @Override
-    public FloatBuffer getFloatBufferForWrite() {
-        synchronized (lock) {
-            ensureWritableLocked();
-            return data.floatBuffer();
-        }
-    }
-
-    @Override
-    public long floatOffset() {
-        synchronized (lock) {
-            ensureWritableLocked();
-            return data.floatOffset();
-        }
-    }
-
     private void ensureWritableLocked() {
         if (data.refCount() > 1) {
             AllocateResult<FloatArenaView> r = data.copy();
@@ -130,6 +80,32 @@ public final class DefaultCopyOnWriteFloats implements CopyOnWriteFloats {
     public void close() {
         synchronized (lock) {
             data.release();
+        }
+    }
+
+    @Override
+    public FloatArenaView.ArraySession array() {
+        return data.array();
+    }
+
+    @Override
+    public FloatArenaView.ArraySession arrayForWrite() {
+        synchronized (lock) {
+            ensureWritableLocked();
+            return data.array();
+        }
+    }
+
+    @Override
+    public FloatArenaView.BufferSession buffer() {
+      return  data.buffer();
+    }
+
+    @Override
+    public FloatArenaView.BufferSession bufferForWrite() {
+        synchronized (lock) {
+            ensureWritableLocked();
+            return data.buffer();
         }
     }
 }

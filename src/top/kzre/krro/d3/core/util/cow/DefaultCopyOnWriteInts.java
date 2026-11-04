@@ -4,8 +4,6 @@ import top.kzre.krro.util.arena.AllocateResult;
 import top.kzre.krro.util.arena.ArenaAllocationException;
 import top.kzre.krro.util.arena.IntArenaView;
 
-import java.nio.IntBuffer;
-
 /**
  * 属性级 COW 单元——一组 int。
  *
@@ -34,42 +32,7 @@ public final class DefaultCopyOnWriteInts implements CopyOnWriteInts {
         this.data = data;
     }
 
-    // ── 元数据 ──
-    @Override
-    public long offset() { return data.offset(); }
-    @Override
-    public long count()  { return data.count(); }
 
-    // ── 只读 ──
-    @Override
-    public int[]     getIntsSnapshot()      { return data.getInts(); }
-    @Override
-    public IntBuffer getIntBufferSnapshot() { return data.intBuffer(); }
-
-    // ── 写 ──
-    @Override
-    public int[] getIntsForWrite() {
-        synchronized (lock) {
-            ensureWritableLocked();
-            return data.getInts();
-        }
-    }
-
-    @Override
-    public IntBuffer getIntBufferForWrite() {
-
-        synchronized (lock) {
-            ensureWritableLocked();
-            return data.intBuffer();
-        }
-    }
-
-    @Override
-    public long intOffset() {
-        synchronized (lock) {
-            return data.intOffset();
-        }
-    }
 
     private void ensureWritableLocked() {
         if (data.refCount() > 1) {
@@ -97,6 +60,32 @@ public final class DefaultCopyOnWriteInts implements CopyOnWriteInts {
     public void close() {
         synchronized (lock) {
             data.release();
+        }
+    }
+
+    @Override
+    public IntArenaView.ArraySession array() {
+        return data.array();
+    }
+
+    @Override
+    public IntArenaView.ArraySession arrayForWrite() {
+        synchronized (lock) {
+            ensureWritableLocked();
+            return data.array();
+        }
+    }
+
+    @Override
+    public IntArenaView.BufferSession buffer() {
+        return data.buffer();
+    }
+
+    @Override
+    public IntArenaView.BufferSession bufferForWrite() {
+        synchronized (lock) {
+            ensureWritableLocked();
+            return data.buffer();
         }
     }
 }

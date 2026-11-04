@@ -66,7 +66,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
     public static final int MAT4_LENGTH = 16;
 
     private final Hierarchy hierarchy;
-    private final ArenaChannelHolder<?, FloatArenaView> floatArena;
+    private final ArenaTemplate<?, FloatArenaView> floatArena;
 
     /** 全局变换缓存。null 表示未计算。 */
     private CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> globalTransforms;
@@ -81,10 +81,10 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
 
     private final LongObjectMap<Object> dirtyNodes = new LongObjectMap<>();
 
-    private final float[] mat4Scratch0 = new float[16];
-    private final float[] mat4Scratch1 = new float[16];
+    private final float[] mat4Scratch0 = new float[MAT4_LENGTH];
+    private final float[] mat4Scratch1 = new float[MAT4_LENGTH];
 
-    private HierarchyEditor(Hierarchy hierarchy, ArenaChannelHolder<?, FloatArenaView> floatArena) {
+    private HierarchyEditor(Hierarchy hierarchy, ArenaTemplate<?, FloatArenaView> floatArena) {
         if (hierarchy == null) throw new NullPointerException("hierarchy");
         if (floatArena == null) throw new NullPointerException("floatTemplate");
         this.hierarchy = hierarchy;
@@ -93,7 +93,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
 
     public static HierarchyEditor create(
             long sceneId,
-            ArenaChannelHolder<?, FloatArenaView> floatArena) {
+            ArenaTemplate<?, FloatArenaView> floatArena) {
         return new HierarchyEditor(
                 Hierarchy.create(sceneId),
                 floatArena
@@ -267,7 +267,12 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
         }
         CopyOnWriteFloats cow = hierarchy.transforms().getSnapshot().getMap().get(nodeId);
         if (cow == null) return false;
-        System.arraycopy(cow.getFloatsSnapshot(), (int) cow.floatOffset(), out, 0, MAT4_LENGTH);
+        try (FloatArenaView.ArraySession session = cow.array()) {
+            System.arraycopy(session.getFloats(), session.offset(), out, 0, MAT4_LENGTH);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
         return true;
     }
 
@@ -286,7 +291,12 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
         ensureGlobalFresh(nodeId);
         CopyOnWriteFloats cow = globalTransforms.getSnapshot().getMap().get(nodeId);
         if (cow == null) return false;
-        System.arraycopy(cow.getFloatsSnapshot(), (int) cow.floatOffset(), out, 0, MAT4_LENGTH);
+        try (FloatArenaView.ArraySession session = cow.array()) {
+            System.arraycopy(session.getFloats(), session.offset(), out, 0, MAT4_LENGTH);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
         return true;
     }
 
@@ -326,24 +336,40 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
 
         CopyOnWriteFloats invCow = invTransforms.getSnapshot().getMap().get(nodeId);
         if (invCow != null) {
-            System.arraycopy(invCow.getFloatsSnapshot(), (int) invCow.floatOffset(), out, 0, 16);
+            try (FloatArenaView.ArraySession session = invCow.array()) {
+                System.arraycopy(session.getFloats(), session.offset(), out, 0, MAT4_LENGTH);
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
+
             return true;
         }
 
         // 未命中：从最新全局单节点现算并回填。先算后替换——不可逆时
         // out 不被污染、缓存不被写入。
         float[] g = mat4Scratch0;
-        System.arraycopy(globalCow.getFloatsSnapshot(), (int) globalCow.floatOffset(), g, 0, MAT4_LENGTH);
+        try (FloatArenaView.ArraySession session = globalCow.array()) {
+            System.arraycopy(session.getFloats(), session.offset(), g, 0, MAT4_LENGTH);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
         KMath.mat4Inv(g, out);  // 不可逆直接抛
 
         LongObjectMap<CopyOnWriteFloats> invOut = invTransforms.getForWrite().getMap();
         CopyOnWriteFloats raced = invOut.get(nodeId);
         if (raced != null) {
             // 快照边界：已被填充，用已有的
-            System.arraycopy(raced.getFloatsSnapshot(), (int) raced.floatOffset(), out, 0, 16);
+            try (FloatArenaView.ArraySession session = raced.array()) {
+                System.arraycopy(session.getFloats(), session.offset(),
+                        out, 0, MAT4_LENGTH);
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
+
         } else {
             float[] store = mat4Scratch1;
-            System.arraycopy(out, 0, store, 0, 16);
+            System.arraycopy(out, 0, store, 0, MAT4_LENGTH);
             invOut.put(nodeId, allocFloats(store));
         }
         return true;
@@ -446,15 +472,15 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
         if (LongLongMap.isUnitValue(parentId)) {
             parentInv = MAT4_IDENTITY;   // 根：local = global
         } else {
-            float[] parentGlobal = new float[16];
+            float[] parentGlobal = new float[MAT4_LENGTH];
             if (!getGlobalTransform(parentId, parentGlobal)) {
                 throw new IllegalStateException("parent not found: " + parentId);
             }
-            parentInv = new float[16];
+            parentInv = new float[MAT4_LENGTH];
             KMath.mat4Inv(parentGlobal, parentInv);  // 不可逆直接抛
         }
 
-        float[] local = new float[16];
+        float[] local = new float[MAT4_LENGTH];
         KMath.mat4Mul(parentInv, mat4, local);
         setLocalTransform(nodeId, local);
     }
@@ -615,7 +641,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
 
         float[] nodeLocal = null;
         if (childCount > 0) {
-            nodeLocal = new float[16];
+            nodeLocal = new float[MAT4_LENGTH];
             if (!getLocalTransform(nodeId, nodeLocal)) {
                 throw new IllegalStateException("local transform missing for node: " + nodeId);
             }
@@ -699,11 +725,11 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
                 if (!dirtyNodes.isEmpty()) {
                     clearDirtyInSubtree(c);
                 }
-                float[] oldLocal = new float[16];
+                float[] oldLocal = new float[MAT4_LENGTH];
                 if (!getLocalTransform(c, oldLocal)) {
                     throw new IllegalStateException("local transform missing for child: " + c);
                 }
-                float[] newLocal = new float[16];
+                float[] newLocal = new float[MAT4_LENGTH];
                 KMath.mat4Mul(nodeLocal, oldLocal, newLocal);
                 setLocalTransform(c, newLocal);   // 内部 markDirty
             }
@@ -858,7 +884,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
      * 全局变换，原样传播。
      */
     public void reparentKeepTransform(long nodeId, long newParentId) {
-        float[] global = new float[16];
+        float[] global = new float[MAT4_LENGTH];
         if (!getGlobalTransform(nodeId, global)) {
             throw new IllegalStateException("node not found: " + nodeId);
         }
@@ -869,7 +895,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
             // 无父节点 = 变根节点：父全局取单位阵
             parentGlobal = MAT4_IDENTITY;
         } else {
-            parentGlobal = new float[16];
+            parentGlobal = new float[MAT4_LENGTH];
             if (!getGlobalTransform(newParentId, parentGlobal)) {
                 throw new IllegalStateException("new parent not found: " + newParentId);
             }
@@ -955,12 +981,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
     private CopyOnWriteObject<LongObjectMapResource<CopyOnWriteFloats>> getGlobalTransforms() {
         if (globalTransforms == null) {
             LongObjectMap<CopyOnWriteFloats> map;
-            try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
-                        session = floatArena.open()) {
-                map = PreMultiTransform.compute(hierarchy, session.get());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            map = PreMultiTransform.compute(hierarchy, floatArena);
             globalTransforms = new DefaultCopyOnWriteObject<>(new LongObjectMapResource<>(map));
             dirtyNodes.clear();
             return globalTransforms;
@@ -993,7 +1014,12 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
             float[] g = mat4Scratch0;
             float[] inv = mat4Scratch1;
             globalsMap.forEach((id, cow) -> {
-                System.arraycopy(cow.getFloatsSnapshot(), (int) cow.floatOffset(), g, 0, 16);
+                try (FloatArenaView.ArraySession session = cow.array()) {
+                    System.arraycopy(session.getFloats(), session.offset(), g, 0, MAT4_LENGTH);
+                } catch (Exception exception) {
+                    throw new RuntimeException(exception);
+                }
+
 
                 KMath.mat4Inv(g, inv);  // 不可逆直接抛
                 map.put(id, allocFloats(inv));
@@ -1020,12 +1046,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
     private void ensureGlobalFresh(long nodeId) {
         if (globalTransforms == null) {
             LongObjectMap<CopyOnWriteFloats> map;
-            try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
-                        session = floatArena.open()){
-                map =   PreMultiTransform.compute(hierarchy, session.get());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            map =   PreMultiTransform.compute(hierarchy, floatArena);
 
             globalTransforms = new DefaultCopyOnWriteObject<>(new LongObjectMapResource<>(map));
             dirtyNodes.clear();
@@ -1044,12 +1065,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
 
         LongObjectMap<CopyOnWriteFloats> out = globalTransforms.getForWrite().getMap();
         readParentGlobal(d, parentMap, out, mat4Scratch0);
-        try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
-                    session = floatArena.open()) {
-            PreMultiTransform.computeSubtree(hierarchy, d, mat4Scratch0, out, session.get());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        PreMultiTransform.computeSubtree(hierarchy, d, mat4Scratch0, out, floatArena);
 
 
         // 逆缓存：只失效，不重算。按需在 getInvGlobalTransform 中回填。
@@ -1086,12 +1102,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
         dirtyNodes.forEach((nodeId, ignored) -> {
             if (!transforms.containsKey(nodeId)) return;
             readParentGlobal(nodeId, parentMap, out, mat4Scratch0);
-            try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
-                        session = floatArena.open()) {
-                PreMultiTransform.computeSubtree(hierarchy, nodeId, mat4Scratch0, out, session.get());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            PreMultiTransform.computeSubtree(hierarchy, nodeId, mat4Scratch0, out, floatArena);
 
         });
 
@@ -1144,7 +1155,7 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
                                   float[] parentGlobalOut) {
         long parentId = parentMap.get(nodeId);
         if (LongLongMap.isUnitValue(parentId)) {
-            System.arraycopy(MAT4_IDENTITY, 0, parentGlobalOut, 0, 16);
+            System.arraycopy(MAT4_IDENTITY, 0, parentGlobalOut, 0, MAT4_LENGTH);
             return;
         }
         CopyOnWriteFloats parentCow = out.get(parentId);
@@ -1152,8 +1163,13 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
             throw new IllegalStateException(
                     "parent " + parentId + " missing in preTransforms cache");
         }
-        System.arraycopy(parentCow.getFloatsSnapshot(), (int) parentCow.floatOffset(),
-                parentGlobalOut, 0, 16);
+        try (FloatArenaView.ArraySession session = parentCow.array()) {
+            System.arraycopy(session.getFloats(), session.offset(),
+                    parentGlobalOut, 0, MAT4_LENGTH);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
     }
 
     // ═══════════════════════════════════════════════
@@ -1231,19 +1247,19 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
     private CopyOnWriteFloats allocFloats(float[] data) {
         int byteSize = data.length * Float.BYTES;
         AllocateResult<FloatArenaView> r;
-        try(AutoCloseableSession<? extends ArenaTemplate<?, FloatArenaView>>
-                    session = floatArena.open()) {
-            r = session.get().allocate(byteSize);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        r = floatArena.allocate(byteSize);
 
         if (r.isFailure()) {
             throw new IllegalStateException(
                     "AutoGrow float allocation failed unexpectedly: " + byteSize + " bytes");
         }
         FloatArenaView view = r.getView();
-        view.floatBuffer().put(data);
+        try (FloatArenaView.BufferSession session = view.buffer()) {
+            session.floatBuffer().put(data);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
         return new DefaultCopyOnWriteFloats(view);
     }
 

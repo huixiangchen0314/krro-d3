@@ -2,6 +2,7 @@ package top.kzre.krro.d3.core.geometry.algo;
 
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteFloats;
 import top.kzre.krro.d3.core.util.cow.CopyOnWriteInts;
+import top.kzre.krro.util.arena.IntArenaView;
 
 /**
  * 面 AABB 算法——逐面扫描其 corner 的顶点位置，求 min / max。
@@ -28,7 +29,12 @@ public interface FaceAabbAlgo {
      * {@code faceCount = faceOffsets.count() - 1}。
      */
     default long count(CopyOnWriteInts faceOffsets) {
-        return (faceOffsets.count() - 1L) * 6L;
+        int count;
+        try (IntArenaView.ArraySession array = faceOffsets.array()) {
+            count = array.count();
+        }
+
+        return (count - 1L) * 6L;
     }
 
     /**

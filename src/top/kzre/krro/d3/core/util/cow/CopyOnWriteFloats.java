@@ -1,19 +1,16 @@
 package top.kzre.krro.d3.core.util.cow;
 
-import java.nio.FloatBuffer;
+import top.kzre.krro.util.arena.FloatArenaView;
 
+/**
+ * 包装 Arena + COW 读写分离
+ */
 public interface CopyOnWriteFloats
         extends CopyOnWrite<CopyOnWriteFloats> {
-    long offset();
-    long floatOffset();
-    long count();
-    // 读
-    float[] getFloatsSnapshot();
-    FloatBuffer getFloatBufferSnapshot();
 
-    // 写
-    float[] getFloatsForWrite();
-    FloatBuffer getFloatBufferForWrite();
-
+    FloatArenaView.ArraySession array();
+    FloatArenaView.ArraySession arrayForWrite();
+    FloatArenaView.BufferSession buffer();
+    FloatArenaView.BufferSession bufferForWrite();
 
 }
