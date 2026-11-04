@@ -4,7 +4,6 @@ import top.kzre.krro.util.math.KMath;
 import top.kzre.krro.util.pool.FloatsHolder;
 import top.kzre.krro.util.pool.FloatsPool;
 import top.kzre.krro.util.pool.PoolManagers;
-import top.kzre.krro.util.pool.PoolsHolder;
 
 /**
  * 可变的轴对齐包围盒。
@@ -106,14 +105,14 @@ public final class AABB implements IAABB {
         this.maxZ = a.getMaxZ();
     }
 
-    public void transform(float[] mat4){
-        transform(this, mat4, this);
+    public void affine(float[] mat4){
+        affine(this, mat4, this);
     }
 
     /**
-     * 执行变换, mat4 不能为仿射变换，外部自己检查，否则结果按隐式处理
+     * 执行变换， mat4 必须为仿射变换，内部不做检查
      */
-    public static void transform(
+    public static void affine(
             IAABB aabb,
             float[] mat4, AABB out) {
         if (mat4 == null) {

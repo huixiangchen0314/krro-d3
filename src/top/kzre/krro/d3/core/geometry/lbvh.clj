@@ -7,7 +7,10 @@
    通用构建器——不携带领域概念：
    - aabbs   float[]——AabbArray 布局
    - mortons long[]——Morton 码升序
-   - n       long——图元数"
+   - n       long——图元数
+
+   offset 语义：aabbs 数据区起始元素下标（aabbs[offset .. offset+n*6)），
+   mortons 与 prim id 均为 0-based，与 offset 无关。"
   (:require
     [top.kzre.krro.d3.core.geometry.bvh :as bvh])
   (:import
@@ -26,7 +29,7 @@
 (defn- allocate-child-array ^ints [^long n]
   (int-array (* (node-count n) 2)))
 
-;; ─── 构建核心——3 参数 ────────────────────────
+;; ─── 构建核心——4 参数（多了 offset）──────────
 ;; ─── 辅助函数——顶层 defn- —— 无闭包 ──────────
 
 (defn- range-min-morton
@@ -60,7 +63,9 @@
         i))))
 
 (defn- build-rec
-  ^long [^LBVHBuildCtx ctx ^long start ^long end]
+  "递归构建。start / end 为 [0, n) 内的 0-based 索引，既是 mortons 索引
+   也是 prim id；offset 仅在读取源 aabbs 时使用。"
+  ^long [^LBVHBuildCtx ctx ^long start ^long end ^long offset]
   (let [^floats data    (.data    ctx)
         ^ints   child   (.child   ctx)
         ^floats aabbs   (.aabbs   ctx)
@@ -68,9 +73,9 @@
         idx (.allocIdx ctx)
         n   (- end start)]
     (if (== n 1)
-      (do (bvh/write-aabb-from! data idx aabbs start)
+      (do (bvh/write-aabb-from! data idx aabbs start offset)   ;; ← 读源 aabbs 带 offset
           (bvh/set-children-left!  child (int idx) -1)
-          (bvh/set-children-right! child (int idx) (int start))
+          (bvh/set-children-right! child (int idx) (int start)) ;; ← prim id 0-based
           idx)
       (let [min-code (range-min-morton mortons start end)
             max-code (range-max-morton mortons start end)
@@ -81,8 +86,8 @@
             split (long (if (or (== split-0 start) (== split-0 end))
                           (unchecked-add start (quot n 2))
                           split-0))
-            left-idx  (build-rec ctx start split)
-            right-idx (build-rec ctx split end)]
+            left-idx  (build-rec ctx start split offset)
+            right-idx (build-rec ctx split end offset)]
         (bvh/merge-aabb! data (int idx) (int left-idx) (int right-idx))
         (bvh/set-children-left!  child (int idx) (int left-idx))
         (bvh/set-children-right! child (int idx) (int right-idx))
@@ -93,20 +98,27 @@
 (defn build-lbvh
   "从已按 Morton 升序排序的 AABB 数组构建 LBVH。
 
-   aabbs:   float[]——AabbArray 布局——长度 = n × 6
-   mortons: long[]——每个图元的 Morton 码——升序
+   aabbs:   float[]——AabbArray 布局——长度 >= offset + n × 6
+   mortons: long[]——每个图元的 Morton 码——升序——长度 >= n（无 offset）
    n:       long——图元数
+
+   kwargs:
+     :offset  aabbs 数据区起始元素下标——默认 0。
+              只影响读取源 aabbs；mortons 与 prim id 始终 0-based。
 
    返回 BVH 实例——primitive-count 存于 ext。"
   ^BVH [^floats aabbs ^longs mortons n
         & {:keys [offset]
            :or {offset 0}}]
-  (if (zero? n)
-    (bvh/make-bvh (float-array 0) (int-array 0) 0)
-    (let [data (allocate-aabb-array n)
-          child (allocate-child-array n)
-          ctx  (LBVHBuildCtx. data child aabbs mortons)]
-      (build-rec ctx offset n)
-      (bvh/make-bvh data child n))))
+  (let [n      (long n)
+        offset (long offset)]
+    (if (zero? n)
+      (bvh/make-bvh (float-array 0) (int-array 0) 0)
+      (let [data  (allocate-aabb-array n)
+            child (allocate-child-array n)
+            ctx   (LBVHBuildCtx. data child aabbs mortons)]
+        ;; 递归区间始终是 [0, n)，offset 只传给读源数组的地方
+        (build-rec ctx 0 n offset)
+        (bvh/make-bvh data child n)))))
 
 (set! *unchecked-math* nil)

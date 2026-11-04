@@ -99,6 +99,10 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // 本质数据——只读代理
     // ═══════════════════════════════════════════════
 
+    public int faceCount(){
+        return mesh.faceCount();
+    }
+
     /** 顶点位置。float3[nverts]。无副作用。 */
     public CopyOnWriteFloats positions() {
         return mesh.positions();

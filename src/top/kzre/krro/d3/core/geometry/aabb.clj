@@ -23,11 +23,14 @@
 ;; ═══════════════════════════════════════════════
 
 (declare aabb-min-x aabb-min-y aabb-min-z)
+(declare aabb-min-x-offset aabb-min-y-offset aabb-min-z-offset)
 (declare aabb-max-x aabb-max-y aabb-max-z)
+(declare aabb-max-x-offset aabb-max-y-offset aabb-max-z-offset)
 (declare set-aabb-min-x! set-aabb-min-y! set-aabb-min-z!)
 (declare set-aabb-max-x! set-aabb-max-y! set-aabb-max-z!)
 
 (declare obj-aabb-min-x obj-aabb-min-y obj-aabb-min-z)
+(declare obj-aabb-min-x-offset obj-aabb-min-y-offset obj-aabb-min-z-offset)
 (declare obj-aabb-max-x obj-aabb-max-y obj-aabb-max-z)
 (declare obj-set-aabb-min-x! obj-set-aabb-min-y! obj-set-aabb-min-z!)
 (declare obj-set-aabb-max-x! obj-set-aabb-max-y! obj-set-aabb-max-z!)
@@ -123,46 +126,50 @@
    返回新建 AABB——调用方负责生命周期。
 
    4 参数——`IFn$OOLL` 接口——start / end 保持 primitive long。"
-  ^AABB [^floats arr ^longs prims ^long start ^long end]
-  (loop [i   start
-         mnx Double/POSITIVE_INFINITY
-         mny Double/POSITIVE_INFINITY
-         mnz Double/POSITIVE_INFINITY
-         mxx Double/NEGATIVE_INFINITY
-         mxy Double/NEGATIVE_INFINITY
-         mxz Double/NEGATIVE_INFINITY]
-    (if (< i end)
-      (let [p   (aget prims i)
-            px0 (double (aabb-min-x arr p))
-            py0 (double (aabb-min-y arr p))
-            pz0 (double (aabb-min-z arr p))
-            px1 (double (aabb-max-x arr p))
-            py1 (double (aabb-max-y arr p))
-            pz1 (double (aabb-max-z arr p))]
-        (recur (unchecked-inc i)
-               (if (< px0 mnx) px0 mnx)
-               (if (< py0 mny) py0 mny)
-               (if (< pz0 mnz) pz0 mnz)
-               (if (> px1 mxx) px1 mxx)
-               (if (> py1 mxy) py1 mxy)
-               (if (> pz1 mxz) pz1 mxz)))
-      (AABB. (float mnx) (float mny) (float mnz)
-             (float mxx) (float mxy) (float mxz)))))
+  ^AABB [^floats arr ^longs prims
+         start end offset]
+  (let [end (long end)
+        offset (long offset)]
+    (loop [i   (long start)
+           mnx Double/POSITIVE_INFINITY
+           mny Double/POSITIVE_INFINITY
+           mnz Double/POSITIVE_INFINITY
+           mxx Double/NEGATIVE_INFINITY
+           mxy Double/NEGATIVE_INFINITY
+           mxz Double/NEGATIVE_INFINITY]
+      (if (< i end)
+        (let [p   (aget prims i)
+              px0 (double (aabb-min-x-offset arr p offset))
+              py0 (double (aabb-min-y-offset arr p offset))
+              pz0 (double (aabb-min-z-offset arr p offset))
+              px1 (double (aabb-max-x-offset arr p offset))
+              py1 (double (aabb-max-y-offset arr p offset))
+              pz1 (double (aabb-max-z-offset arr p offset))]
+          (recur (unchecked-inc i)
+                 (if (< px0 mnx) px0 mnx)
+                 (if (< py0 mny) py0 mny)
+                 (if (< pz0 mnz) pz0 mnz)
+                 (if (> px1 mxx) px1 mxx)
+                 (if (> py1 mxy) py1 mxy)
+                 (if (> pz1 mxz) pz1 mxz)))
+        (AABB. (float mnx) (float mny) (float mnz)
+               (float mxx) (float mxy) (float mxz)))))
+  )
 
 
 (defn center-on-axis
   "图元 prim-idx 在 axis-idx 上的中心坐标——double。
 
    axis-idx：Axis/X / Axis/Y / Axis/Z。"
-  ^double [^floats arr ^long prim-idx ^long axis-idx]
+  ^double [^floats arr ^long prim-idx ^long axis-idx ^long offset]
   (let [lo (double (Axis/select axis-idx
-                                (aabb-min-x arr prim-idx)
-                                (aabb-min-y arr prim-idx)
-                                (aabb-min-z arr prim-idx)))
+                                (aabb-min-x-offset arr prim-idx offset)
+                                (aabb-min-y-offset arr prim-idx offset)
+                                (aabb-min-z-offset arr prim-idx offset)))
         hi (double (Axis/select axis-idx
-                                (aabb-max-x arr prim-idx)
-                                (aabb-max-y arr prim-idx)
-                                (aabb-max-z arr prim-idx)))]
+                                (aabb-max-x-offset arr prim-idx offset)
+                                (aabb-max-y-offset arr prim-idx offset)
+                                (aabb-max-z-offset arr prim-idx offset)))]
     (* 0.5 (+ lo hi))))
 
 (defn longest-axis

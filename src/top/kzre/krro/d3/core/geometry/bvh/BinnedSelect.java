@@ -41,15 +41,26 @@ public final class BinnedSelect {
     // 最长轴
     // ═══════════════════════════════════════════════
 
+    /** 无 offset 版本——数据区从 0 开始。 */
+    public static int longestAxis(float[] aabbs, long[] prims, int start, int end) {
+        return longestAxis(aabbs, prims, start, end, 0);
+    }
+
     /**
      * 计算最长轴——返回 {@link Axis#X} / {@link Axis#Y} / {@link Axis#Z}。
+     *
+     * @param aabbs  AABB 数组——AabbArray 布局
+     * @param prims  图元 id 数组
+     * @param start  起始索引（含）
+     * @param end    结束索引（不含）
+     * @param offset aabbs 数据区起始元素下标（通常为 0）
      */
-    public static int longestAxis(float[] aabbs, long[] prims, int start, int end) {
+    public static int longestAxis(float[] aabbs, long[] prims, int start, int end, int offset) {
         float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
 
         for (int i = start; i < end; i++) {
-            int base = (int) (prims[i] * AABB_STRIDE);
+            int base = (int) (prims[i] * AABB_STRIDE) + offset;
             if (aabbs[base]     < minX) minX = aabbs[base];
             if (aabbs[base + 1] < minY) minY = aabbs[base + 1];
             if (aabbs[base + 2] < minZ) minZ = aabbs[base + 2];
@@ -71,19 +82,26 @@ public final class BinnedSelect {
     // Binned SAH 分区
     // ═══════════════════════════════════════════════
 
+    /** 无 offset 版本——数据区从 0 开始。 */
+    public static int binnedPartition(long[] prims, int start, int end,
+                                      float[] aabbs, int axis) {
+        return binnedPartition(prims, start, end, aabbs, axis, 0);
+    }
+
     /**
      * 分桶 SAH 分区。
      *
-     * @param prims 图元 id 数组
-     * @param start 起始索引（含）
-     * @param end   结束索引（不含）
-     * @param aabbs AABB 数组——AabbArray 布局
-     * @param axis  最长轴
+     * @param prims  图元 id 数组
+     * @param start  起始索引（含）
+     * @param end    结束索引（不含）
+     * @param aabbs  AABB 数组——AabbArray 布局
+     * @param axis   最长轴
+     * @param offset aabbs 数据区起始元素下标（通常为 0）
      * @return split——左分区结束位置（右分区从 split 开始）
      *         无法分割时返回 -1
      */
     public static int binnedPartition(long[] prims, int start, int end,
-                                      float[] aabbs, int axis) {
+                                      float[] aabbs, int axis, int offset) {
         int n = end - start;
         if (n < 2) return -1;
 
@@ -91,7 +109,7 @@ public final class BinnedSelect {
         float rangeMin = Float.POSITIVE_INFINITY;
         float rangeMax = Float.NEGATIVE_INFINITY;
         for (int i = start; i < end; i++) {
-            int base = (int) (prims[i] * AABB_STRIDE);
+            int base = (int) (prims[i] * AABB_STRIDE) + offset;
             float lo = aabbs[base + axis];
             float hi = aabbs[base + axis + 3];
             if (lo < rangeMin) rangeMin = lo;
@@ -140,7 +158,7 @@ public final class BinnedSelect {
                 bCnt[b]  = 0;                                  // ← 池化——必须显式清零
             }
             for (int i = start; i < end; i++) {
-                int base = (int) (prims[i] * AABB_STRIDE);
+                int base = (int) (prims[i] * AABB_STRIDE) + offset;
                 float c = (aabbs[base + axis] + aabbs[base + axis + 3]) * 0.5f;
                 int b = (int) ((c - rangeMin) * scale);
                 if (b < 0) b = 0;
@@ -217,7 +235,7 @@ public final class BinnedSelect {
             }
             long[] tmp = new long[n];                          // ← 长度可变——不池化
             for (int i = start; i < end; i++) {
-                int base = (int) (prims[i] * AABB_STRIDE);
+                int base = (int) (prims[i] * AABB_STRIDE) + offset;   // ← 修复：补上 offset
                 float c = (aabbs[base + axis] + aabbs[base + axis + 3]) * 0.5f;
                 int b = (int) ((c - rangeMin) * scale);
                 if (b < 0) b = 0;

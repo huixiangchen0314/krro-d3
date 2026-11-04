@@ -1,6 +1,8 @@
 package top.kzre.krro.d3.core.util;
 
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * long → Object 哈希表——开放寻址——线性探测——Robin Hood。
@@ -243,6 +245,57 @@ public final class LongObjectMap<V> {
                 visitor.visit(keys[i], (V) values[i]);
             }
         }
+    }
+
+    public final class MapEntry {
+        private final long key;
+        private final V obj;
+
+        public MapEntry(long key, V obj) {
+            this.key = key;
+            this.obj = obj;
+        }
+
+        public long getKey() {
+            return key;
+        }
+
+        public V getValue() {
+            return obj;
+        }
+    }
+
+    public Iterator<MapEntry> iterator() {
+        return new Iterator<MapEntry>() {
+
+            /** 下一个非空槽下标；等于 values.length 表示已到末尾。 */
+            private int next = nextFilled(0);
+
+            private int nextFilled(int from) {
+                while (from < values.length
+                        && values[from] == null) {
+                    from++;
+                }
+                return from;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return next < values.length;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public MapEntry next() {
+                if (next >= values.length) {
+                    throw new NoSuchElementException("LongObjectMap iterator exhausted");
+                }
+                int i = next;
+                MapEntry entry = new MapEntry(keys[i], (V) values[i]);
+                next = nextFilled(i + 1);
+                return entry;
+            }
+        };
     }
 
     // ═══════════════════════════════════════════════

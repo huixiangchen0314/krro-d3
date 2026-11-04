@@ -88,14 +88,24 @@ public final class SBVHBuildCtx {
     // refs 初始化
     // ═══════════════════════════════════════════════
 
-    public void initRefsFromAabbArray(float[] src, int startPrim, int count) {
+    /**
+     * 从 AABB 数组初始化 refs。
+     *
+     * <p>语义：{@code src[offset .. offset + count*6)} 是 count 个 AABB 的数据区。
+     * prim id 从 <b>0</b> 开始（与数据区在数组中的位置无关）。
+     *
+     * @param src    AabbArray 布局的源数组
+     * @param offset 数据区起始<b>元素</b>下标（不是图元号）
+     * @param count  图元数
+     */
+    public void initRefsFromAabbArray(float[] src, int offset, int count) {
         refPrims.clear();
         refAabbs.clear();
         refPrims.ensureCapacity(count);
         refAabbs.ensureCapacity(count * 6);
         for (int i = 0; i < count; i++) {
-            int srcBase = (startPrim + i) * 6;
-            refPrims.add(startPrim + i);
+            int srcBase = offset + i * 6;
+            refPrims.add(i);                              // ← prim id 从 0 开始
             refAabbs.add(src[srcBase]);
             refAabbs.add(src[srcBase + 1]);
             refAabbs.add(src[srcBase + 2]);

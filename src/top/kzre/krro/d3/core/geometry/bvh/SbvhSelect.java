@@ -17,6 +17,9 @@ import top.kzre.krro.util.pool.PoolManagers;
  *   <li>采用"追加"模式——新 refs 写入 ctx 尾部</li>
  * </ul>
  *
+ * <p><b>所有 refs 索引均相对于 ctx 内部 refs 数组（0-based）。</b>
+ * 外部 aabbs 的 offset 已在 SBVHBuildCtx.initRefsFromAabbArray 阶段消化。
+ *
  * <p><b>非线程安全</b>。
  */
 public final class SbvhSelect {
@@ -176,8 +179,6 @@ public final class SbvhSelect {
             if (bestSplit < 0) return null;
 
             float splitPos = rangeMin + bestSplit * range / K;
-
-            // ─── 分区——追加 ───
             return partitionAppend(ctx, start, end, axis, splitPos);
 
         } finally {
@@ -200,7 +201,6 @@ public final class SbvhSelect {
     private static PartitionResult partitionAppend(
             SBVHBuildCtx ctx, int start, int end, int axis, float splitPos) {
 
-        // 第一遍——算 leftCount / rightCount
         float[] aabbs = ctx.refAabbs();
         int[]   prims = ctx.refPrims();
 
@@ -220,7 +220,6 @@ public final class SbvhSelect {
         }
         if (leftCount == 0 || rightCount == 0) return null;
 
-        // 追加位置——在 refs 尾部
         int outStart = ctx.refCount();
         int total    = leftCount + rightCount;
         ctx.ensureRefCapacity(outStart + total);
@@ -241,24 +240,20 @@ public final class SbvhSelect {
             int   pid = prims[i];
 
             if (hi <= splitPos) {
-                // 纯左
                 prims[lp] = pid;
                 System.arraycopy(aabbs, base, aabbs, lp * 6, 6);
                 lp++;
             } else if (lo >= splitPos) {
-                // 纯右
                 prims[rp] = pid;
                 System.arraycopy(aabbs, base, aabbs, rp * 6, 6);
                 rp++;
             } else {
                 // 跨界——复制到两侧——裁剪 AABB
-                // 左侧——(lo, splitPos)
                 prims[lp] = pid;
                 System.arraycopy(aabbs, base, aabbs, lp * 6, 6);
                 aabbs[lp * 6 + 3 + axis] = splitPos;
                 lp++;
 
-                // 右侧——(splitPos, hi)
                 prims[rp] = pid;
                 System.arraycopy(aabbs, base, aabbs, rp * 6, 6);
                 aabbs[rp * 6 + axis] = splitPos;

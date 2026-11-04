@@ -2,6 +2,7 @@ package top.kzre.krro.d3.core.geometry;
 
 import top.kzre.krro.d3.core.util.ResourceUtils;
 import top.kzre.krro.d3.core.util.cow.*;
+import top.kzre.krro.util.arena.IntArenaView;
 
 import java.util.List;
 
@@ -57,6 +58,7 @@ public final class Mesh implements CopyOnWrite<Mesh> {
 
     /**
      * 面 → 面角范围偏移。int——stride 1——长度 = faceCount + 1。
+     * + 1 的原因是，相邻的数组构成闭区间，最后一个区间是硬指定，而不是保持默认到结尾
      */
     private final CopyOnWriteInts faceOffsets;
 
@@ -123,6 +125,20 @@ public final class Mesh implements CopyOnWrite<Mesh> {
 
     public CopyOnWriteInts faceOffsets() {
         return faceOffsets;
+    }
+
+    /**
+     * 返回面数，= 面偏移减1
+     * JVM 表达，最多对于个数的处理只是 int.
+     * 但相对的字节处理可能比int 个数多，所以使用long.
+     * 这里只是表达个数，所以返回int。对于超大个数的，上层应当分块处理
+     */
+    public int faceCount(){
+        int count;
+        try (IntArenaView.ArraySession session = faceOffsets.array()) {
+           count = session.count();
+        }
+        return count - 1;
     }
 
     public CopyOnWriteInts edgeEndpoints() {

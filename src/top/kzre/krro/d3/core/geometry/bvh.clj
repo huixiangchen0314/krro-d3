@@ -15,9 +15,11 @@
 (declare aabb-min-x aabb-min-y aabb-min-z aabb-max-x aabb-max-y aabb-max-z)
 (declare set-aabb-min-x! set-aabb-min-y! set-aabb-min-z!
   set-aabb-max-x! set-aabb-max-y! set-aabb-max-z!)
+(declare set-aabb-min-x-offset! set-aabb-min-y-offset! set-aabb-min-z-offset!
+  set-aabb-max-x-offset! set-aabb-max-y-offset! set-aabb-max-z-offset!)
 (declare children-left children-right)
 (declare set-children-left! set-children-right!)
-
+(declare set-children-left-offset! set-children-right-offset!)
 (declare obj-aabb-min-x obj-aabb-min-y obj-aabb-min-z
   obj-aabb-max-x obj-aabb-max-y obj-aabb-max-z)
 (declare obj-set-aabb-min-x! obj-set-aabb-min-y! obj-set-aabb-min-z!
@@ -109,13 +111,20 @@
   "从 AabbArray 布局的数组第 src-idx 槽写入 BVH 的 node-idx 槽。
 
    布局知识全在 aabb.clj——本宏不硬编码下标。"
-  [bvh-data node-idx src src-idx]
-  `(do (set-aabb-min-x! ~bvh-data ~node-idx (aabb/aabb-min-x ~src ~src-idx))
-       (set-aabb-min-y! ~bvh-data ~node-idx (aabb/aabb-min-y ~src ~src-idx))
-       (set-aabb-min-z! ~bvh-data ~node-idx (aabb/aabb-min-z ~src ~src-idx))
-       (set-aabb-max-x! ~bvh-data ~node-idx (aabb/aabb-max-x ~src ~src-idx))
-       (set-aabb-max-y! ~bvh-data ~node-idx (aabb/aabb-max-y ~src ~src-idx))
-       (set-aabb-max-z! ~bvh-data ~node-idx (aabb/aabb-max-z ~src ~src-idx))))
+  ([bvh-data node-idx src src-idx]
+   `(do (set-aabb-min-x! ~bvh-data ~node-idx (aabb/aabb-min-x ~src ~src-idx))
+        (set-aabb-min-y! ~bvh-data ~node-idx (aabb/aabb-min-y ~src ~src-idx))
+        (set-aabb-min-z! ~bvh-data ~node-idx (aabb/aabb-min-z ~src ~src-idx))
+        (set-aabb-max-x! ~bvh-data ~node-idx (aabb/aabb-max-x ~src ~src-idx))
+        (set-aabb-max-y! ~bvh-data ~node-idx (aabb/aabb-max-y ~src ~src-idx))
+        (set-aabb-max-z! ~bvh-data ~node-idx (aabb/aabb-max-z ~src ~src-idx))))
+  ([bvh-data node-idx src src-idx offset]
+   `(do (set-aabb-min-x! ~bvh-data ~node-idx (aabb/aabb-min-x-offset ~src ~src-idx ~offset))
+        (set-aabb-min-y! ~bvh-data ~node-idx (aabb/aabb-min-y-offset ~src ~src-idx ~offset))
+        (set-aabb-min-z! ~bvh-data ~node-idx (aabb/aabb-min-z-offset ~src ~src-idx ~offset))
+        (set-aabb-max-x! ~bvh-data ~node-idx (aabb/aabb-max-x-offset ~src ~src-idx ~offset))
+        (set-aabb-max-y! ~bvh-data ~node-idx (aabb/aabb-max-y-offset ~src ~src-idx ~offset))
+        (set-aabb-max-z! ~bvh-data ~node-idx (aabb/aabb-max-z-offset ~src ~src-idx ~offset)))))
 
 ;; ═══════════════════════════════════════════════
 ;; 对象版本——转发到数组版

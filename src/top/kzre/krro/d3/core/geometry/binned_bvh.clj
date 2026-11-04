@@ -37,7 +37,8 @@
 ;; ═══════════════════════════════════════════════
 
 (defn- build-rec
-  ^long [^BinnedBvhBuildCtx ctx ^long start ^long end]
+  ^long [^BinnedBvhBuildCtx ctx
+         ^long start ^long end ^long offset]
   (let [^floats data  (.data  ctx)
         ^ints   child (.child ctx)
         ^floats aabbs (.aabbs ctx)
@@ -46,19 +47,19 @@
         n   (- end start)]
     (if (== n 1)
       ;; 叶节点——单图元
-      (do (bvh/write-aabb-from! data idx aabbs (aget prims start))
-          (bvh/set-children-left!  child (int idx) -1)
-          (bvh/set-children-right! child (int idx) (int (aget prims start)))
+      (do (bvh/write-aabb-from! data idx aabbs (aget prims start) offset)
+          (bvh/set-children-left!  child (int idx) -1 )
+          (bvh/set-children-right! child (int idx) (int (aget prims start)) )
           idx)
       ;; 内部节点
-      (let [ax       (BinnedSelect/longestAxis aabbs prims (int start) (int end))
+      (let [ax       (BinnedSelect/longestAxis aabbs prims (int start) (int end) (int offset))
             raw      (BinnedSelect/binnedPartition
-                       prims (int start) (int end) aabbs ax)
+                       prims (int start) (int end) aabbs ax (int offset))
             split    (long (if (or (neg? raw) (== raw start) (== raw end))
                              (unchecked-add start (quot n 2))
                              raw))
-            left-idx  (build-rec ctx start split)
-            right-idx (build-rec ctx split end)]
+            left-idx  (build-rec ctx start split offset)
+            right-idx (build-rec ctx split end offset)]
         (bvh/merge-aabb! data (int idx) (int left-idx) (int right-idx))
         (bvh/set-children-left!  child (int idx) (int left-idx))
         (bvh/set-children-right! child (int idx) (int right-idx))
@@ -85,7 +86,7 @@
           prims (long-array n)]
       (dotimes [i n] (aset prims i (long i)))
       (let [ctx (BinnedBvhBuildCtx. data child aabbs prims)]
-        (build-rec ctx offset n))
+        (build-rec ctx 0 n offset))
       (bvh/make-bvh data child n))))
 
 (set! *unchecked-math* nil)

@@ -22,7 +22,10 @@
   "把 refs[start, end) 写入节点。
    叶 AABB = 所有 ref 的裁剪 AABB 的并集。
    objRefs 追加 prim ids。
-   返回 node-idx。"
+   返回 node-idx。
+
+   ref-aabbs 是 ctx 内部 refs 数组（从 0 起），与外部 offset 无关；
+   组件访问统一走 bvh 的 AABB getter 宏，不硬编码 stride。"
   ^long [^SBVHBuildCtx ctx ^long node-idx ^long start ^long end]
   (let [^floats data     (.dataArray ctx)
         ^ints   child    (.childArray ctx)
@@ -38,14 +41,14 @@
            mxy Double/NEGATIVE_INFINITY
            mxz Double/NEGATIVE_INFINITY]
       (if (< i end)
-        (let [base (* i 6)]
+        (let [ii (int i)]
           (recur (unchecked-inc i)
-                 (min mnx (double (aget ref-aabbs base)))
-                 (min mny (double (aget ref-aabbs (+ base 1))))
-                 (min mnz (double (aget ref-aabbs (+ base 2))))
-                 (max mxx (double (aget ref-aabbs (+ base 3))))
-                 (max mxy (double (aget ref-aabbs (+ base 4))))
-                 (max mxz (double (aget ref-aabbs (+ base 5))))))
+                 (min mnx (double (bvh/aabb-min-x ref-aabbs ii)))
+                 (min mny (double (bvh/aabb-min-y ref-aabbs ii)))
+                 (min mnz (double (bvh/aabb-min-z ref-aabbs ii)))
+                 (max mxx (double (bvh/aabb-max-x ref-aabbs ii)))
+                 (max mxy (double (bvh/aabb-max-y ref-aabbs ii)))
+                 (max mxz (double (bvh/aabb-max-z ref-aabbs ii)))))
         (do
           (bvh/set-aabb-min-x! data (int node-idx) (float mnx))
           (bvh/set-aabb-min-y! data (int node-idx) (float mny))
@@ -78,6 +81,8 @@
 ;; ═══════════════════════════════════════════════
 
 (defn- build-rec
+  "refs 全部位于 ctx 内部数组——offset 已在 initRefsFromAabbArray 阶段
+   消化为 refs 数组从 0 起的数据区，递归里不再需要 offset。"
   ^long [^SBVHBuildCtx ctx ^long start ^long end ^long leaf-size]
   (let [idx (.allocIdx ctx)
         n   (- end start)]
@@ -103,27 +108,28 @@
 (defn build-sbvh
   "从 AABB 数组构建 SBVH——阶段 2（空间分裂）。
 
-   aabbs: float[]——AabbArray 布局——长度 = n × 6
-   n:     图元数, 这个虽然可以算出来，但实际上这样处理更容易出错
+   aabbs: float[]——AabbArray 布局——长度 >= offset + n × 6
+   n:     图元数（虽然可由数组长度算出，但显式传入避免歧义）
 
    kwargs:
+     :offset     数组数据区起始元素下标——默认 0
      :leaf-size  叶节点最大图元数——默认 8
-      :offset 数组的起始偏移
    返回 BVH 实例——SBVHMeta 存于 ext。"
   ^BVH [^floats aabbs n
-        & {:keys [offset
-                  leaf-size]
+        & {:keys [offset leaf-size]
            :or {offset 0
                 leaf-size 8}}]
-  (let [n (long n)
-        leaf-size (long leaf-size)]
+  (let [n         (long n)
+        leaf-size (long leaf-size)
+        offset    (long offset)]
     (if (zero? n)
       (BVH. (float-array 0) (int-array 0) (SBVHMeta. 0 (int-array 0) 0))
       (let [initial-nodes (* 4 n)
             initial-refs  (* 4 n)
             ctx           (SBVHBuildCtx. initial-nodes initial-refs)]
-        (.initRefsFromAabbArray ctx aabbs 0 (int n))
-        (build-rec ctx offset n leaf-size)
+        ;; 读源 aabbs：把数据区元素偏移传下去（prim id 仍从 0 起）
+        (.initRefsFromAabbArray ctx aabbs (int offset) (int n))
+        (build-rec ctx 0 n leaf-size)
         (BVH. (.dataArray ctx) (.childArray ctx)
               (SBVHMeta. n (.objRefs ctx) (.objRefCount ctx)))))))
 

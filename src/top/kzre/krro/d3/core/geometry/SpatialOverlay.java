@@ -44,6 +44,18 @@ public final class SpatialOverlay {
         return out;
     }
 
+    /**
+     * 导出为long副本
+     */
+    public long[] toLongArray() {
+        long[] out = new long[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = ids[i];
+        }
+        return out;
+    }
+
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("SpatialOverlay[");
