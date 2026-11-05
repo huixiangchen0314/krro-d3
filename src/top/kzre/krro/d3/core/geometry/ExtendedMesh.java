@@ -52,7 +52,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // 算法
     private final MinMaxScanAlgo minMaxScan = new MinMaxScanImpl();
     private final CornerPositionGatherAlgo cornerPositionGather = new CornerPositionGatherImpl();
-    private final TriangulationAlgo triangulation = new MikkTriangulationImpl();
+    private final TriangulationAlgo triangulation = new GeometryEdgeTangentsImpl();
     private final FaceAabbAlgo faceAabbs = new FaceAabbScanImpl();
     private final CornerEdgeLookupAlgo cornerEdgeLookup = new CornerEdgeLookupImpl();
     private final CornerNormalsAlgo cornerNormals = new EdgeAdjacentNormalsImpl();
@@ -68,12 +68,89 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
      */
     private float smoothAngleRadians;
 
+    /**
+     * 面角法线缓存（per-corner normals）。
+     *
+     * <p>布局：每面角 3 个 float（nx, ny, nz），总长 = cornerCount × 3。
+     * 面角法线按 {@code AngleClusteredNormals} 的夹角阈值分离——
+     * 同一顶点的不同面角可拥有不同法线（如立方体 90° 硬边）。
+     *
+     * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
+     */
     private CopyOnWriteFloats cachedCornerNormals;
+
+    /**
+     * 面角边缓存（per-corner edge indices）。
+     *
+     * <p>布局：每面角 2 个 int，分别指向该面角的两条相邻边在
+     * 全局边表中的下标——用于轮廓边检测、法线分离、法线生成
+     * 等需要面角与边拓扑关联的算法。
+     *
+     * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
+     */
     private CopyOnWriteInts   cachedCornerEdges;
+
+    /**
+     * 切线缓存（per-corner tangents）。
+     *
+     * <p>布局：每面角 3 个 float（tx, ty, tz），总长 = cornerCount × 3。
+     * 由 UV 与位置推导，供法线贴图使用——与面角法线、UV 一一对应。
+     *
+     * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
+     */
     private CopyOnWriteFloats cachedTangents;
+
+    /**
+     * 整体包围盒缓存。
+     *
+     * <p>覆盖所有顶点位置的 AABB（世界空间 = 局部空间，含 model 变换前）。
+     * 用于视锥剔除、拾取加速、相机自动取景等。
+     *
+     * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变——
+     * 用 {@link top.kzre.krro.d3.core.geometry.ImmutableAABB} 而非可变 AABB，
+     * 避免外部持有后污染缓存。
+     */
     private ImmutableAABB     cachedBounds;
+
+    /**
+     * 每面 AABB 缓存（per-face AABBs）。
+     *
+     * <p>布局：每面 6 个 float（minX, minY, minZ, maxX, maxY, maxZ），
+     * 总长 = faceCount × 6。每个 AABB 是该面所有面角位置的紧包围。
+     *
+     * <p>用于逐面剔除、面级 BVH 构建、空间划分等不需要展开到
+     * 三角形粒度的加速结构。
+     *
+     * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
+     */
     private CopyOnWriteFloats cachedFaceAabbs;
+
+    /**
+     * 面角位置缓存（per-corner positions）。
+     *
+     * <p>布局：每面角 3 个 float（x, y, z），总长 = cornerCount × 3。
+     * 由 per-vertex {@code positions} 经 {@code cornerVerts} 索引展开——
+     * 展开逻辑见 {@link top.kzre.krro.d3.core.geometry.algo.CornerPositionGatherImpl}。
+     *
+     * <p>渲染管线直接消费此数据（每 3 个角点组成一个三角形面角），
+     * 无需再经过 {@code cornerVerts} 间接寻址。
+     *
+     * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
+     */
     private CopyOnWriteFloats cachedCornerPositions;
+
+    /**
+     * 三角形索引缓存（triangle indices）。
+     *
+     * <p>布局：每三角形 3 个 int，总长 = triangleCount × 3。下标指向
+     * <b>面角空间</b>（{@code 0..cornerCount-1}），不是 per-vertex 空间——
+     * 与 {@link #cachedCornerPositions} 配合使用。
+     *
+     * <p>由 {@code faceOffsets} 对每面（n 边形）做扇形剖分得到：
+     * 每个 n 边形生成 n−2 个三角形，对 quad 即 2 个。
+     *
+     * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
+     */
     private CopyOnWriteInts   cachedTriangleIndices;
 
     // ═══════════════════════════════════════════════

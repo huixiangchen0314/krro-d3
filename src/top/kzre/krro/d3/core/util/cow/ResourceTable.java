@@ -18,21 +18,27 @@ import top.kzre.krro.d3.core.util.ResourceUtils;
  */
 public final class ResourceTable<A extends CopyOnWrite<A>> implements CopyOnWrite<ResourceTable<A>> {
 
-    /** 元素列表——持有资源 */
+    /**
+     * 元素列表——持有资源
+     */
     private final CopyOnWriteObject<ListResource<A>> items;
 
-    /** id → 位置索引——只加速查找 */
+    /**
+     * id → 位置索引——只加速查找
+     */
     private final CopyOnWriteObject<LongIntMapResource> indexMap;
 
-    /** 位置分配器——写路径使用 */
+    /**
+     * 位置分配器——写路径使用
+     */
     private final CopyOnWriteObject<IndexAllocatorResource> indexAllocator;
 
     private ResourceTable(
             CopyOnWriteObject<ListResource<A>> items,
             CopyOnWriteObject<LongIntMapResource> indexMap,
             CopyOnWriteObject<IndexAllocatorResource> indexAllocator) {
-        this.items          = items;
-        this.indexMap       = indexMap;
+        this.items = items;
+        this.indexMap = indexMap;
         this.indexAllocator = indexAllocator;
     }
 
@@ -47,23 +53,37 @@ public final class ResourceTable<A extends CopyOnWrite<A>> implements CopyOnWrit
     // 访问
     // ═══════════════════════════════════════════════
 
-    public CopyOnWriteObject<ListResource<A>> items()          { return items; }
-    public CopyOnWriteObject<LongIntMapResource> indexMap()       { return indexMap; }
-    public CopyOnWriteObject<IndexAllocatorResource> indexAllocator() { return indexAllocator; }
+    public CopyOnWriteObject<ListResource<A>> items() {
+        return items;
+    }
 
-    /** 按 id 查找。 */
+    public CopyOnWriteObject<LongIntMapResource> indexMap() {
+        return indexMap;
+    }
+
+    public CopyOnWriteObject<IndexAllocatorResource> indexAllocator() {
+        return indexAllocator;
+    }
+
+    /**
+     * 按 id 查找。
+     */
     public A get(long id) {
         int idx = indexMap.getSnapshot().getMap().get(id);
         if (idx < 0) return null;
         return items.getSnapshot().getList().get(idx);
     }
 
-    /** 按位置查找。 */
+    /**
+     * 按位置查找。
+     */
     public A getByIndex(int index) {
         return items.getSnapshot().getList().get(index);
     }
 
-    /** 元素数量。 */
+    /**
+     * 元素数量。
+     */
     public int size() {
         return items.getSnapshot().getList().size();
     }

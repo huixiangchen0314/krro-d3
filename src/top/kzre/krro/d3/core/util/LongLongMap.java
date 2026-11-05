@@ -1,6 +1,8 @@
 package top.kzre.krro.d3.core.util;
 
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * long → long 原始类型哈希表——开放寻址——线性探测——Robin Hood。
@@ -25,28 +27,30 @@ public final class LongLongMap {
 
     private long[] keys;
     private long[] values;
-    private int    mask;
-    private int    size;
-    private int    threshold;
+    private int mask;
+    private int size;
+    private int threshold;
 
-    public LongLongMap() { this(16); }
+    public LongLongMap() {
+        this(16);
+    }
 
     public LongLongMap(int expectedSize) {
         int cap = RobinHoodHash.capacityFor(expectedSize);
-        this.keys      = new long[cap];
-        this.values    = new long[cap];
+        this.keys = new long[cap];
+        this.values = new long[cap];
         Arrays.fill(this.values, UNIT_VALUE);
-        this.mask      = cap - 1;
+        this.mask = cap - 1;
         this.threshold = RobinHoodHash.thresholdFor(cap);
-        this.size      = 0;
+        this.size = 0;
     }
 
     private LongLongMap(long[] keys, long[] values, int mask, int threshold, int size) {
-        this.keys      = keys;
-        this.values    = values;
-        this.mask      = mask;
+        this.keys = keys;
+        this.values = values;
+        this.mask = mask;
         this.threshold = threshold;
-        this.size      = size;
+        this.size = size;
     }
 
     // ═══════════════════════════════════════════════
@@ -60,10 +64,10 @@ public final class LongLongMap {
     public void ensureCapacity(int expected) {
         int needed = RobinHoodHash.capacityFor(expected);
         if (keys.length < needed) {
-            this.keys      = new long[needed];
-            this.values    = new long[needed];
+            this.keys = new long[needed];
+            this.values = new long[needed];
             Arrays.fill(this.values, UNIT_VALUE);
-            this.mask      = needed - 1;
+            this.mask = needed - 1;
             this.threshold = RobinHoodHash.thresholdFor(needed);
         }
         clear();
@@ -130,7 +134,7 @@ public final class LongLongMap {
 
         while (true) {
             if (values[idx] == UNIT_VALUE) {
-                keys[idx]   = curKey;
+                keys[idx] = curKey;
                 values[idx] = curVal;
                 size++;
                 return UNIT_VALUE;
@@ -165,9 +169,17 @@ public final class LongLongMap {
     // 状态
     // ═══════════════════════════════════════════════
 
-    public int     size()    { return size; }
-    public boolean isUnitValue() { return size == 0; }
-    public int     capacity() { return keys.length; }
+    public int size() {
+        return size;
+    }
+
+    public boolean isUnitValue() {
+        return size == 0;
+    }
+
+    public int capacity() {
+        return keys.length;
+    }
 
     public void clear() {
         Arrays.fill(values, UNIT_VALUE);
@@ -179,16 +191,16 @@ public final class LongLongMap {
     // ═══════════════════════════════════════════════
 
     private void grow() {
-        long[] oldKeys   = keys;
+        long[] oldKeys = keys;
         long[] oldValues = values;
 
         int newCap = RobinHoodHash.growCapacity(keys.length);
-        keys      = new long[newCap];
-        values    = new long[newCap];
+        keys = new long[newCap];
+        values = new long[newCap];
         Arrays.fill(values, UNIT_VALUE);
-        mask      = newCap - 1;
+        mask = newCap - 1;
         threshold = RobinHoodHash.thresholdFor(newCap);
-        size      = 0;
+        size = 0;
 
         for (int i = 0; i < oldKeys.length; i++) {
             if (oldValues[i] != UNIT_VALUE) {
@@ -197,15 +209,64 @@ public final class LongLongMap {
         }
     }
 
+    public static final class MapEntry {
+        private final long key;
+        private final long value;
+
+        public MapEntry(long key, long value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        public long getKey() {
+            return key;
+        }
+
+        public long getValue() {
+            return value;
+        }
+    }
+
+    public Iterator<MapEntry> iterator() {
+        return new Iterator<MapEntry>() {
+
+            /** 下一个非空槽下标；等于 values.length 表示已到末尾。 */
+            private int next = nextFilled(0);
+
+            private int nextFilled(int from) {
+                while (from < values.length
+                        && isUnitValue(values[from])) {
+                    from++;
+                }
+                return from;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return next < values.length;
+            }
+
+            @Override
+            public MapEntry next() {
+                if (next >= values.length) {
+                    throw new NoSuchElementException("LongObjectMap iterator exhausted");
+                }
+                int i = next;
+                MapEntry entry = new MapEntry(keys[i], values[i]);
+                next = nextFilled(i + 1);
+                return entry;
+            }
+        };
+    }
     // ═══════════════════════════════════════════════
     // 复制
     // ═══════════════════════════════════════════════
 
     public LongLongMap copy() {
         int n = this.keys.length;
-        long[] newKeys   = new long[n];
+        long[] newKeys = new long[n];
         long[] newValues = new long[n];
-        System.arraycopy(this.keys,   0, newKeys,   0, n);
+        System.arraycopy(this.keys, 0, newKeys, 0, n);
         System.arraycopy(this.values, 0, newValues, 0, n);
         return new LongLongMap(newKeys, newValues, this.mask, this.threshold, this.size);
     }
@@ -247,7 +308,7 @@ public final class LongLongMap {
         while (values[next] != UNIT_VALUE) {
             if (!RobinHoodHash.canBackwardShift(keys[next], next, mask)) break;
 
-            keys[hole]   = keys[next];
+            keys[hole] = keys[next];
             values[hole] = values[next];
             values[next] = UNIT_VALUE;
 
