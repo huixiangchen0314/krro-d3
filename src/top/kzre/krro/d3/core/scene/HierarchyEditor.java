@@ -108,7 +108,15 @@ public final class HierarchyEditor implements CopyOnWrite<HierarchyEditor> {
      * 只读约定
      */
     public LongObjectMap<SceneObject> objects(){
-      return  hierarchy.objects().getForWrite().getMap();
+      return  hierarchy.objects().getSnapshot().getMap();
+    }
+
+
+    /**
+     * 可写的 COW 副本
+     */
+    public LongObjectMap<SceneObject> objectsForWrite(){
+        return  hierarchy.objects().getForWrite().getMap();
     }
 
     /**

@@ -78,8 +78,13 @@ public final class DefaultCopyOnWriteFloats implements CopyOnWriteFloats {
      */
     @Override
     public void close() {
+        if (data == null){
+            throw new IllegalStateException("DefaultCopyOnWriteFloats is already closed");
+        }
+
         synchronized (lock) {
             data.release();
+            data = null;
         }
     }
 
@@ -107,5 +112,13 @@ public final class DefaultCopyOnWriteFloats implements CopyOnWriteFloats {
             ensureWritableLocked();
             return data.buffer();
         }
+    }
+
+    @Override
+    public String toString() {
+        return "CopyOnWriteFloats{" +
+                "data=" + data +
+                "refCount=" + data.refCount() +
+                '}';
     }
 }

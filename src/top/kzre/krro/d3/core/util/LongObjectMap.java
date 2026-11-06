@@ -1,5 +1,7 @@
 package top.kzre.krro.d3.core.util;
 
+import top.kzre.krro.d3.core.util.cow.CopyOnWrite;
+
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -12,6 +14,8 @@ import java.util.NoSuchElementException;
  *
  * <p><b>复用</b>：{@link #ensureCapacity(int)} 保留数组容量——
  * 避免大数组反复分配进入老年代。配合 ThreadLocal 使用。
+ *
+ * <p><b>COW支持</b>, 如果值是COW的，那么它会被自动shared</p>
  *
  * <p><b>线程契约</b>：非线程安全。
  *
@@ -345,12 +349,25 @@ public final class LongObjectMap<V> {
      * <p>只复制层级结构——不复制 value 对象。
      * 新旧 map 共享同一批 value。
      */
+    @SuppressWarnings("rawtypes")
     public LongObjectMap<V> copy() {
         int n = this.keys.length;
         long[]   newKeys   = new long[n];
         Object[] newValues = new Object[n];
         System.arraycopy(this.keys,   0, newKeys,   0, n);
-        System.arraycopy(this.values, 0, newValues, 0, n);
+
+        // 如果是 COW 就 COW 拷贝，否则认为是值类型，保持引用
+        for (int i = 0; i < n; i++) {
+            Object v = this.values[i];
+            if (v != null ) {
+                if (v instanceof CopyOnWrite){
+                    CopyOnWrite cow = (CopyOnWrite)v;
+                    newValues[i] = cow.shared();
+                }else {
+                    newValues[i] = v;
+                }
+            }
+        }
         return new LongObjectMap<>(newKeys, newValues, this.mask, this.threshold, this.size);
     }
 }

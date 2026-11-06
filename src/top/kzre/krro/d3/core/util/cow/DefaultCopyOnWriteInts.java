@@ -58,8 +58,13 @@ public final class DefaultCopyOnWriteInts implements CopyOnWriteInts {
 
     @Override
     public void close() {
+        if (data == null){
+            throw new IllegalStateException("CopyOnWriteInts is already closed");
+        }
+
         synchronized (lock) {
             data.release();
+            data = null;
         }
     }
 
@@ -87,5 +92,13 @@ public final class DefaultCopyOnWriteInts implements CopyOnWriteInts {
             ensureWritableLocked();
             return data.buffer();
         }
+    }
+
+    @Override
+    public String toString() {
+        return "CopyOnWriteInts{" +
+                "data=" + data +
+                "refCount=" + data.refCount() +
+                '}';
     }
 }

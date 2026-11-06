@@ -25,7 +25,8 @@ import top.kzre.krro.util.arena.IntArenaView;
  */
 public final class FaceAabbScanImpl implements FaceAabbAlgo {
 
-    public FaceAabbScanImpl() {}
+    public FaceAabbScanImpl() {
+    }
 
     // TODO 直接查 边角->边缓存
     @Override
@@ -33,14 +34,14 @@ public final class FaceAabbScanImpl implements FaceAabbAlgo {
                         CopyOnWriteInts cornerVerts,
                         CopyOnWriteInts faceOffsets,
                         CopyOnWriteFloats out) {
-        if (positions == null)   throw new NullPointerException("positions");
+        if (positions == null) throw new NullPointerException("positions");
         if (cornerVerts == null) throw new NullPointerException("cornerVerts");
         if (faceOffsets == null) throw new NullPointerException("faceOffsets");
-        if (out == null)         throw new NullPointerException("out");
+        if (out == null) throw new NullPointerException("out");
 
         try (FloatArenaView.ArraySession posSess = positions.array();
-             IntArenaView.ArraySession  cvSess  = cornerVerts.array();
-             IntArenaView.ArraySession  foSess  = faceOffsets.array()) {
+             IntArenaView.ArraySession cvSess = cornerVerts.array();
+             IntArenaView.ArraySession foSess = faceOffsets.array()) {
 
             int posCount = posSess.count();
             if (posCount % 3 != 0) {
@@ -57,13 +58,13 @@ public final class FaceAabbScanImpl implements FaceAabbAlgo {
             long needed = (long) faceCount * 6L;
 
             // ── 读快照（会话生命周期内稳定）──
-            int[] fo    = foSess.getInts();
-            int   foOff = foSess.offset();
+            int[] fo = foSess.getInts();
+            int foOff = foSess.offset();
 
-            float[] pos   = posSess.getFloats();
-            int     pOff  = posSess.offset();
-            int[]   cv    = cvSess.getInts();
-            int     cvOff = cvSess.offset();
+            float[] pos = posSess.getFloats();
+            int pOff = posSess.offset();
+            int[] cv = cvSess.getInts();
+            int cvOff = cvSess.offset();
 
             // ── 写会话：容量校验 + 写 ──
             try (FloatArenaView.ArraySession outSess = out.arrayForWrite()) {
@@ -72,13 +73,13 @@ public final class FaceAabbScanImpl implements FaceAabbAlgo {
                             "out needs " + needed + " floats, has " + outSess.count());
                 }
 
-                float[] o    = outSess.getFloats();
-                int     oOff = outSess.offset();
+                float[] o = outSess.getFloats();
+                int oOff = outSess.offset();
 
                 int w = oOff;
                 for (int f = 0; f < faceCount; f++) {
                     int start = fo[foOff + f];
-                    int end   = fo[foOff + f + 1];
+                    int end = fo[foOff + f + 1];
 
                     if (start >= end) {
                         o[w++] = Float.POSITIVE_INFINITY;

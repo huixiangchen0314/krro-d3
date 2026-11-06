@@ -268,7 +268,9 @@
    - :acc  IntList——复用累加器——省略时内部创建
 
    复用约定见命名空间文档。"
-  ^SpatialOverlay [^BVH bvh ^Ray ray & {:keys [acc]}]
+  ^SpatialOverlay
+  [^BVH bvh ^Ray ray
+   & {:keys [acc]}]
   (let [^IntList acc (or acc (IntList.))]
     (.clear acc)
     (let [n (primitive-count bvh)]

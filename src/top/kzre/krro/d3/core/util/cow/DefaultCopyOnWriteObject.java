@@ -56,8 +56,10 @@ public final class DefaultCopyOnWriteObject<T extends Resource<T>>
 
     @Override
     public void close() {
+        if (data == null){
+            throw new IllegalStateException("DefaultCopyOnWriteObject is already closed");
+        }
         synchronized (lock) {
-            if (data == null) return;
             data.dispose();
             data = null;
         }
