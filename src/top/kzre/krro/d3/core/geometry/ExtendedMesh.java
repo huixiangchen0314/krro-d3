@@ -88,7 +88,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
      *
      * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
      */
-    private CopyOnWriteInts   cachedCornerEdges;
+    private CopyOnWriteInts cachedCornerEdges;
 
     /**
      * 切线缓存（per-corner tangents）。
@@ -110,7 +110,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
      * 用 {@link top.kzre.krro.d3.core.geometry.ImmutableAABB} 而非可变 AABB，
      * 避免外部持有后污染缓存。
      */
-    private ImmutableAABB     cachedBounds;
+    private ImmutableAABB cachedBounds;
 
     /**
      * 每面 AABB 缓存（per-face AABBs）。
@@ -151,7 +151,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
      *
      * <p>懒加载：{@code null} 表示尚未计算。计算完成后不可变。
      */
-    private CopyOnWriteInts   cachedTriangleIndices;
+    private CopyOnWriteInts cachedTriangleIndices;
 
     // ═══════════════════════════════════════════════
     // 构造
@@ -176,31 +176,41 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
     // 本质数据——只读代理
     // ═══════════════════════════════════════════════
 
-    public int faceCount(){
+    public int faceCount() {
         return mesh.faceCount();
     }
 
-    /** 顶点位置。float3[nverts]。无副作用。 */
+    /**
+     * 顶点位置。float3[nverts]。无副作用。
+     */
     public CopyOnWriteFloats positions() {
         return mesh.positions();
     }
 
-    /** 面角 → 顶点。int[ncorners]。无副作用。 */
+    /**
+     * 面角 → 顶点。int[ncorners]。无副作用。
+     */
     public CopyOnWriteInts cornerVerts() {
         return mesh.cornerVerts();
     }
 
-    /** 面 → 面角范围偏移。int[nfaces + 1]。无副作用。 */
+    /**
+     * 面 → 面角范围偏移。int[nfaces + 1]。无副作用。
+     */
     public CopyOnWriteInts faceOffsets() {
         return mesh.faceOffsets();
     }
 
-    /** 边端点。int2[nedges]。无副作用。 */
+    /**
+     * 边端点。int2[nedges]。无副作用。
+     */
     public CopyOnWriteInts edgeEndpoints() {
         return mesh.edgeEndpoints();
     }
 
-    /** 面角 UV 通道列表。无副作用。 */
+    /**
+     * 面角 UV 通道列表。无副作用。
+     */
     public List<CopyOnWriteFloats> cornerUvs() {
         // COWObject 不是预期的边缘字段
         return Collections.unmodifiableList(mesh.cornerUvs().getSnapshot().getList());
@@ -405,8 +415,8 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
                             + "Generate a default UV set before requesting tangents.");
         }
 
-        CopyOnWriteFloats normals    = cornerNormals();
-        CopyOnWriteInts   triIndices = triangleIndices();
+        CopyOnWriteFloats normals = cornerNormals();
+        CopyOnWriteInts triIndices = triangleIndices();
         CopyOnWriteFloats out = allocateFloats(tangents.count(mesh.cornerVerts()));
         tangents.compute(
                 mesh.positions(), mesh.cornerVerts(), mesh.faceOffsets(),
@@ -420,7 +430,7 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
      *
      * <p>依赖：positions。
      */
-    public IAABB bound() {
+    public IAABB bounds() {
         ImmutableAABB c = cachedBounds;
         if (c != null) return c;
 
@@ -453,24 +463,33 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
     private void discardCornerNormals() {
         if (cachedCornerNormals != null) {
-            try { cachedCornerNormals.close(); }
-            catch (Exception e) { throw new RuntimeException(e); }
+            try {
+                cachedCornerNormals.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             cachedCornerNormals = null;
         }
     }
 
     private void discardCornerEdges() {
         if (cachedCornerEdges != null) {
-            try { cachedCornerEdges.close(); }
-            catch (Exception e) { throw new RuntimeException(e); }
+            try {
+                cachedCornerEdges.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             cachedCornerEdges = null;
         }
     }
 
     private void discardTangents() {
         if (cachedTangents != null) {
-            try { cachedTangents.close(); }
-            catch (Exception e) { throw new RuntimeException(e); }
+            try {
+                cachedTangents.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             cachedTangents = null;
         }
     }
@@ -483,24 +502,33 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
 
     private void discardFaceAabbs() {
         if (cachedFaceAabbs != null) {
-            try { cachedFaceAabbs.close(); }
-            catch (Exception e) { throw new RuntimeException(e); }
+            try {
+                cachedFaceAabbs.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             cachedFaceAabbs = null;
         }
     }
 
     private void discardCornerPositions() {
         if (cachedCornerPositions != null) {
-            try { cachedCornerPositions.close(); }
-            catch (Exception e) { throw new RuntimeException(e); }
+            try {
+                cachedCornerPositions.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             cachedCornerPositions = null;
         }
     }
 
     private void discardTriangleIndices() {
         if (cachedTriangleIndices != null) {
-            try { cachedTriangleIndices.close(); }
-            catch (Exception e) { throw new RuntimeException(e); }
+            try {
+                cachedTriangleIndices.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             cachedTriangleIndices = null;
         }
     }
@@ -525,11 +553,11 @@ public final class ExtendedMesh implements CopyOnWrite<ExtendedMesh> {
                 mesh.shared(), floatTemplate, intTemplate, smoothAngleRadians);
 
         m.cachedCornerPositions = cachedCornerPositions == null ? null : cachedCornerPositions.shared();
-        m.cachedCornerNormals   = cachedCornerNormals   == null ? null : cachedCornerNormals.shared();
-        m.cachedCornerEdges     = cachedCornerEdges     == null ? null : cachedCornerEdges.shared();
-        m.cachedTangents        = cachedTangents        == null ? null : cachedTangents.shared();
-        m.cachedBounds          = cachedBounds;
-        m.cachedFaceAabbs       = cachedFaceAabbs       == null ? null : cachedFaceAabbs.shared();
+        m.cachedCornerNormals = cachedCornerNormals == null ? null : cachedCornerNormals.shared();
+        m.cachedCornerEdges = cachedCornerEdges == null ? null : cachedCornerEdges.shared();
+        m.cachedTangents = cachedTangents == null ? null : cachedTangents.shared();
+        m.cachedBounds = cachedBounds;
+        m.cachedFaceAabbs = cachedFaceAabbs == null ? null : cachedFaceAabbs.shared();
         m.cachedTriangleIndices = cachedTriangleIndices == null ? null : cachedTriangleIndices.shared();
 
         return m;
