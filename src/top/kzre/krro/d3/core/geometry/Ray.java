@@ -25,6 +25,7 @@ public final class Ray {
     /**
      * 构造射线，不对方向向量进行归一化，也不保证退化
      */
+    @Deprecated
     public Ray(float ox, float oy, float oz,
                float dx, float dy, float dz) {
         this.ox = ox; this.oy = oy; this.oz = oz;
