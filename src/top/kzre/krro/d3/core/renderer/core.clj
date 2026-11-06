@@ -1,5 +1,5 @@
-(ns top.kzre.krro.d3.core.render.core
-  (:import (top.kzre.krro.d3.core.render Pass)))
+(ns top.kzre.krro.d3.core.renderer.core
+  (:import (top.kzre.krro.d3.core.renderer Pass)))
 
 (defmulti pipeline
           "合成管线：按 renderer 分发，返回 {:passes [Pass ...]}。

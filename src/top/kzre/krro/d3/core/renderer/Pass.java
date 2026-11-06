@@ -1,4 +1,4 @@
-package top.kzre.krro.d3.core.render;
+package top.kzre.krro.d3.core.renderer;
 
 /**
  * Pass 标记接口，实际能力取决于子接口。
