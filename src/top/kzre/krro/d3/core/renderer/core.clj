@@ -19,6 +19,17 @@
           (fn [^Pass pass & _more]
             (.getId pass)))
 
+(defn render-passes
+  "如果pipeline 无需 GPU  上下文线程，那么分离规划是更好的做法"
+  ([passes init-acc params]
+   (reduce
+     (fn [acc pass]
+       (let [result (render-pass pass acc params)]
+         result))
+     init-acc
+     passes))
+  ([passes params] (render-passes passes nil params)))
+
 (defn render
   "执行合成管线：pipeline 产出 pass 序列，按序 fold 执行。
    每个 pass 收到 (pass acc params)，返回新 acc 传给下一 pass；
@@ -27,12 +38,6 @@
    本层只提供流程与约定，不解释其结构。"
   ([init-acc params]
    (let [{:keys [passes]} (pipeline params)
-         {:keys [canvas]}
-         (reduce
-           (fn [acc pass]
-             (let [result (render-pass pass acc params)]
-               result))
-           init-acc
-           passes)]
-     canvas))
+         result (render-passes passes init-acc params)]
+     result))
   ([params] (render nil params)))
